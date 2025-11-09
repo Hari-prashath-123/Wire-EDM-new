@@ -1,3 +1,5 @@
+"use client"
+
 // 1. ADD THIS HELPER FUNCTION
 function getMaterialColor(materialName: string): string {
   switch (materialName?.toLowerCase()) {
@@ -15,7 +17,6 @@ function getMaterialColor(materialName: string): string {
       return "#64748b"; // Default slate gray
   }
 }
-"use client"
 
 function getMethodVisuals(cuttingMethod: string) {
   switch (cuttingMethod) {
