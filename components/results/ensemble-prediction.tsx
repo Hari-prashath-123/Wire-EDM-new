@@ -1,11 +1,25 @@
 "use client"
 
-export default function EnsemblePrediction() {
+import type { ProcessMetrics, EDMParameters } from "@/components/simulation/types"
+
+interface Props {
+  processMetrics: ProcessMetrics
+  parameters?: EDMParameters
+}
+
+export default function EnsemblePrediction({ processMetrics, parameters }: Props) {
+  // Derive dimensional accuracy from spark gap (from parameters) if available; else roughness proxy
+  const dimensionalAccuracy = parameters
+    ? (parameters.sparkGap * 0.5).toFixed(3)
+    : (processMetrics.surfaceRoughness / 100).toFixed(3)
+
+  const processingTime = (100 / (Math.max(processMetrics.materialRemovalRate, 0.01))).toFixed(2)
+
   const metrics = [
-    { label: "Material Removal Rate", value: "85.3", unit: "mm³/min" },
-    { label: "Surface Roughness", value: "0.42", unit: "μm" },
-    { label: "Dimensional Accuracy", value: "0.15", unit: "mm" },
-    { label: "Processing Time", value: "12.5", unit: "min" },
+    { label: "Material Removal Rate", value: processMetrics.materialRemovalRate.toFixed(2), unit: "mm³/min" },
+    { label: "Surface Roughness", value: processMetrics.surfaceRoughness.toFixed(2), unit: "µm" },
+    { label: "Dimensional Accuracy", value: dimensionalAccuracy, unit: "mm" },
+    { label: "Processing Time", value: processingTime, unit: "min" },
   ]
 
   return (

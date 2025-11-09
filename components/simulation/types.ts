@@ -21,10 +21,28 @@ export type CoordinatesShape = {
 
 export type ShapeData = DrawnShape | FileShape | CoordinatesShape
 
-export interface Parameters {
-  speed: number
-  power: number
-  precision: number
+// Unified EDMParameters used across app and AI stubs (superset of fields)
+export interface EDMParameters {
+  voltage: number
+  current: number
+  pulseOnTime: number
+  pulseOffTime: number
+  wireSpeed: number
+  dielectricFlow: number
+  wireOffset: number
+  sparkGap: number
+}
+
+// Metrics derived from parameters and simulation
+export interface ProcessMetrics {
+  dischargeEnergy: number
+  dutyCycle: number
+  powerConsumption: number
+  estimatedCostPerHour: number
+  materialRemovalRate: number
+  surfaceRoughness: number
+  wireWearRate: number
+  efficiency: number
 }
 
 export type CuttingMethod =

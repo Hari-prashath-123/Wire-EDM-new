@@ -1,69 +1,114 @@
 "use client"
 
-import { Slider } from "@/components/ui/slider"
+// Use a client-only slider to avoid hydration attribute mismatches (data-has-listeners, etc.)
+import dynamic from "next/dynamic"
+const Slider = dynamic(() => import("@/components/ui/slider").then(m => m.Slider), { ssr: false })
 import { Card } from "@/components/ui/card"
-
-interface Parameters {
-  speed: number
-  power: number
-  precision: number
-}
+import type { EDMParameters } from "@/components/simulation/types"
 
 interface Props {
-  parameters: Parameters
-  onParameterChange: (params: Parameters) => void
+  parameters: EDMParameters
+  onParameterChange: (key: keyof EDMParameters, value: number) => void
 }
 
-const SLIDER_CONFIG = [
+const SLIDER_CONFIG: Array<{
+  key: keyof EDMParameters
+  label: string
+  unit: string
+  min: number
+  max: number
+  step?: number
+}> = [
   {
-    key: "speed" as const,
-    label: "Cutting Speed",
+    key: "voltage",
+    label: "Voltage",
+    unit: "V",
+    min: 80,
+    max: 300,
+    step: 1,
+  },
+  {
+    key: "current",
+    label: "Current",
+    unit: "A",
+    min: 1,
+    max: 50,
+    step: 1,
+  },
+  {
+    key: "pulseOnTime",
+    label: "Pulse On Time",
+    unit: "µs",
+    min: 5,
+    max: 200,
+    step: 1,
+  },
+  {
+    key: "pulseOffTime",
+    label: "Pulse Off Time",
+    unit: "µs",
+    min: 5,
+    max: 200,
+    step: 1,
+  },
+  {
+    key: "wireSpeed",
+    label: "Wire Speed",
     unit: "mm/min",
-    min: 0,
-    max: 100,
+    min: 50,
+    max: 400,
+    step: 5,
   },
   {
-    key: "power" as const,
-    label: "Power Output",
-    unit: "W",
-    min: 0,
-    max: 100,
+    key: "dielectricFlow",
+    label: "Dielectric Flow",
+    unit: "L/min",
+    min: 5,
+    max: 30,
+    step: 0.5,
   },
   {
-    key: "precision" as const,
-    label: "Precision Level",
-    unit: "µm",
+    key: "wireOffset",
+    label: "Wire Offset",
+    unit: "mm",
     min: 0,
-    max: 100,
+    max: 5,
+    step: 0.1,
+  },
+  {
+    key: "sparkGap",
+    label: "Spark Gap",
+    unit: "mm",
+    min: 0.01,
+    max: 0.2,
+    step: 0.01,
   },
 ]
 
 export default function ParameterPanel({ parameters, onParameterChange }: Props) {
-  const handleSliderChange = (key: keyof Parameters, value: number[]) => {
-    onParameterChange({
-      ...parameters,
-      [key]: value[0],
-    })
+  const handleSliderChange = (key: keyof EDMParameters, value: number[]) => {
+    onParameterChange(key, value[0])
   }
 
   return (
     <Card className="p-6 bg-card border-border">
       <h2 className="text-xl font-semibold mb-6">Parameters</h2>
       <div className="space-y-6">
-        {SLIDER_CONFIG.map(({ key, label, unit, min, max }) => (
-          <div key={key} className="space-y-2">
+        {SLIDER_CONFIG.map(({ key, label, unit, min, max, step }) => (
+          <div key={String(key)} className="space-y-2" suppressHydrationWarning>
             <div className="flex justify-between items-center">
               <label className="text-sm font-medium">{label}</label>
               <span className="text-sm text-muted-foreground">
-                {parameters[key]} {unit}
+                {String(parameters[key])} {unit}
               </span>
             </div>
+            {/* Client-only slider */}
             <Slider
-              value={[parameters[key]]}
-              onValueChange={(value) => handleSliderChange(key, value)}
+              value={[Number(parameters[key] as unknown as number)]}
+              onValueChange={(value: number[]) => handleSliderChange(key, value)}
               min={min}
               max={max}
-              step={1}
+              step={step ?? 1}
               className="w-full"
             />
           </div>

@@ -10,16 +10,21 @@ import ProcessOverview from "@/components/parameters/process-overview"
 import { Button } from "@/components/ui/button"
 import { ArrowRight } from "lucide-react"
 
+// Import EDMParameters from page (could be refactored to a shared types file later)
+import type { EDMParameters, ProcessMetrics } from "@/components/simulation/types"
+
 
 
 interface ParametersTabProps {
-  selectedMethod: string;
-  onCuttingMethodChange: (method: CuttingMethod) => void;
-  parameters: { speed: number, power: number, precision: number };
-  setParameters: (params: any) => void;
-  selectedMaterial: string;
-  setSelectedMaterial: (material: string) => void;
-  onNext: () => void;
+  selectedMethod: CuttingMethod
+  onCuttingMethodChange: (method: CuttingMethod) => void
+  parameters: EDMParameters
+  setParameters: (params: EDMParameters) => void
+  onParameterChange?: (key: keyof EDMParameters, value: any) => void
+  processMetrics?: ProcessMetrics
+  selectedMaterial: string
+  setSelectedMaterial: (material: string) => void
+  onNext: () => void
 }
 
 export default function ParametersTab({
@@ -27,6 +32,8 @@ export default function ParametersTab({
   onCuttingMethodChange,
   parameters,
   setParameters,
+  onParameterChange,
+  processMetrics,
   selectedMaterial,
   setSelectedMaterial,
   onNext,
@@ -47,14 +54,20 @@ export default function ParametersTab({
             />
             <ParameterPanel
               parameters={parameters}
-              onParameterChange={setParameters}
+              onParameterChange={(key, value) => {
+                if (onParameterChange) {
+                  onParameterChange(key, value)
+                } else {
+                  setParameters({ ...parameters, [key]: value } as EDMParameters)
+                }
+              }}
             />
             <Button onClick={onNext} className="w-full h-12 text-lg font-semibold mt-6">
               Next to Simulation <ArrowRight className="w-5 h-5 ml-2" />
             </Button>
           </div>
           <div>
-            <ProcessOverview parameters={parameters} />
+            <ProcessOverview parameters={parameters} processMetrics={processMetrics} />
           </div>
         </div>
       </CardContent>
