@@ -21,6 +21,48 @@ function parseCSV(csvText: string): any[] {
   });
 }
 
+// Fallback synthetic dataset generator when CSV is unavailable
+function generateSyntheticData(rows: number = 200): any[] {
+  const data: any[] = [];
+  for (let i = 0; i < rows; i++) {
+    // Inputs (approximate realistic ranges)
+    const voltage = 90 + Math.random() * 210; // 90-300 V
+    const current = 3 + Math.random() * 40;   // 3-43 A
+    const pulseOnTime = 5 + Math.random() * 150; // 5-155 µs
+    const pulseOffTime = 5 + Math.random() * 200; // 5-205 µs
+    const wireTension = 4 + Math.random() * 12; // 4-16 (arbitrary units)
+    const flushingPressure = 5 + Math.random() * 20; // 5-25 L/min equivalent
+    const feedRate = 0.5 + Math.random() * 4; // 0.5-4.5 mm/s (proxy)
+    const sparkGap = 0.02 + Math.random() * 0.18; // 0.02-0.2 mm
+
+    // Simple synthetic relationships to outputs
+    const energy = (voltage * current * pulseOnTime) / 1000;
+    const duty = pulseOnTime / (pulseOnTime + pulseOffTime);
+    const cooling = flushingPressure / 30;
+    const tensionFactor = wireTension / 20;
+    const gapPenalty = Math.max(0.5, 1 - (sparkGap - 0.05) * 2);
+
+    const materialRemovalRate = Math.max(0.2, (energy * duty * (feedRate + 0.5)) / 8000 * gapPenalty);
+    const surfaceRoughness = Math.max(0.1, 4.5 - (duty * 2) - (cooling * 1.2) + (sparkGap * 6) + (current / 60));
+    const wireWearRate = Math.max(0.02, Math.min(1, (current * voltage) / 50000 * (1 - tensionFactor) * (1 - cooling + 0.3)));
+
+    data.push({
+      voltage,
+      current,
+      pulseOnTime,
+      pulseOffTime,
+      wireTension,
+      flushingPressure,
+      feedRate,
+      sparkGap,
+      materialRemovalRate,
+      surfaceRoughness,
+      wireWearRate
+    });
+  }
+  return data;
+}
+
 // Fetch and parse the real dataset from the /public folder
 async function loadEDMDataset(uploadedData?: any[]): Promise<any[]> {
   if (uploadedData && Array.isArray(uploadedData) && uploadedData.length > 0) {

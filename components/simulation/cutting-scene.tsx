@@ -1,5 +1,4 @@
 "use client"
-
 // 1. ADD THIS HELPER FUNCTION
 function getMaterialColor(materialName: string): string {
   switch (materialName?.toLowerCase()) {
