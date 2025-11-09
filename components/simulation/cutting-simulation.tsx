@@ -1,3 +1,4 @@
+  // Ensure onSaveIteration is available in this scope
 "use client"
 
 import { useMemo, useState } from "react"
@@ -24,9 +25,10 @@ interface CuttingSimulationProps {
   onStopSimulation?: () => void;
   cuttingSpeed?: number;
   onCuttingSpeedChange?: (value: number) => void;
+  onSaveIteration?: (iterationData: { parameters: EDMParameters; material: string; shapeName: string; cutoutPoints: { x: number; y: number }[] }) => void;
 }
 
-export function CuttingSimulation({ cuttingMethod = "wire-edm", parameters, setParameters, material, isRunning, onToggleSimulation, onStopSimulation, cuttingSpeed, onCuttingSpeedChange }: CuttingSimulationProps) {
+export function CuttingSimulation({ cuttingMethod = "wire-edm", parameters, setParameters, material, isRunning, onToggleSimulation, onStopSimulation, cuttingSpeed, onCuttingSpeedChange, onSaveIteration }: CuttingSimulationProps) {
   const [localIsRunning, setLocalIsRunning] = useState(false)
   const [shapeData, setShapeData] = useState<ShapeData | null>(null)
   const [selectedShapeId, setSelectedShapeId] = useState<string | undefined>(undefined)
@@ -44,7 +46,6 @@ export function CuttingSimulation({ cuttingMethod = "wire-edm", parameters, setP
   const handleReset = () => {
     if (onStopSimulation) onStopSimulation()
     else setLocalIsRunning(false)
-    // always use functional update assuming setParameters is a React setter
     ;(setParameters as React.Dispatch<React.SetStateAction<EDMParameters>>)((prev) => ({ ...prev, wireSpeed: 250 }))
   }
 
@@ -56,6 +57,15 @@ export function CuttingSimulation({ cuttingMethod = "wire-edm", parameters, setP
   const handlePresetShape = (shape: { type: string; name: string; points: any[] }) => {
     setShapeData({ type: 'preset', name: shape.name, points: shape.points })
   }
+
+  const getShapeName = (shape: ShapeData | null): string => {
+    if (!shape) return "No Shape";
+    if (shape.type === 'preset') return shape.name;
+    if (shape.type === 'drawn') return `Drawn (${shape.points.length} pts)`;
+    if (shape.type === 'file') return shape.name || "Uploaded File";
+    if (shape.type === 'coordinates') return `Path (${shape.points.length} pts)`;
+    return "Custom Shape";
+  };
 
   const renderShapeInput = () => {
     switch (cuttingMethod) {
@@ -104,14 +114,29 @@ export function CuttingSimulation({ cuttingMethod = "wire-edm", parameters, setP
             className="bg-black rounded-lg border border-border"
             style={{ width: "800px", height: "400px", maxWidth: "100%" }}
           >
-            <Scene
-              shapeData={shapeData}
-              isRunning={running}
-              cuttingSpeed={(cuttingSpeed ?? parameters.wireSpeed ?? 0)}
-              cuttingMethod={cuttingMethod}
-              parameters={parameters}
-              material={material}
-            />
+              <Scene
+                shapeData={shapeData}
+                isRunning={running}
+                cuttingSpeed={(cuttingSpeed ?? parameters.wireSpeed ?? 0)}
+                cuttingMethod={cuttingMethod}
+                parameters={parameters}
+                material={material}
+                onLoop={() => {
+                  if (onSaveIteration) {
+                    // Get the actual points used for the cutout
+                    let cutoutPoints: { x: number; y: number }[] = [];
+                    if (shapeData && 'points' in shapeData && Array.isArray((shapeData as any).points)) {
+                      cutoutPoints = (shapeData as any).points;
+                    }
+                    onSaveIteration({
+                      parameters,
+                      material,
+                      shapeName: getShapeName(shapeData),
+                      cutoutPoints
+                    });
+                  }
+                }}
+              />
           </div>
         </div>
 

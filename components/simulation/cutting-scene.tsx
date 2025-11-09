@@ -11,6 +11,7 @@ function getMethodVisuals(cuttingMethod: string) {
 }
 
 import React, { useRef, useMemo, useEffect, useState } from "react"
+import CutoutShape from "./CutoutShape"
 import { extend } from '@react-three/fiber';
 import { PointsMaterial } from 'three';
 extend({ PointsMaterial });
@@ -29,6 +30,7 @@ interface SceneProps {
   cuttingMethod: string
   parameters: EDMParameters
   material: string
+  onLoop?: () => void
 }
 
 function CuttingPath({ points }: { points: Point2D[] }) {
@@ -52,7 +54,7 @@ function CuttingPath({ points }: { points: Point2D[] }) {
   );
 }
 
-function CuttingTool({ points, isRunning, cuttingSpeed, cuttingMethod, parameters, material, onToolMove }: { points: Point2D[]; isRunning: boolean; cuttingSpeed: number; cuttingMethod: string; parameters: EDMParameters; material: string; onToolMove?: (position: THREE.Vector3) => void }) {
+function CuttingTool({ points, isRunning, cuttingSpeed, cuttingMethod, parameters, material, onToolMove, onLoop }: { points: Point2D[]; isRunning: boolean; cuttingSpeed: number; cuttingMethod: string; parameters: EDMParameters; material: string; onToolMove?: (position: THREE.Vector3) => void; onLoop?: () => void }) {
   const toolRef = useRef<THREE.Group>(null!);
   const [progress, setProgress] = useState(0);
   const [finished, setFinished] = useState(false);
@@ -88,6 +90,9 @@ function CuttingTool({ points, isRunning, cuttingSpeed, cuttingMethod, parameter
     if (newProgress >= totalPathLength) {
       setProgress(totalPathLength);
       setFinished(true);
+      if (typeof onLoop === 'function') {
+        onLoop();
+      }
       return;
     }
     setProgress(newProgress);
@@ -277,7 +282,13 @@ function SparkParticles({ position, color, show }: { position: THREE.Vector3, co
   );
 }
 
-export default function CuttingScene({ shapeData = null, isRunning, cuttingSpeed, cuttingMethod, parameters, material }: SceneProps) {
+export default function CuttingScene({ shapeData = null, isRunning, cuttingSpeed, cuttingMethod, parameters, material, onLoop }: SceneProps) {
+  const [showCutout, setShowCutout] = useState(false);
+  useEffect(() => {
+    if (!isRunning) {
+      setShowCutout(false);
+    }
+  }, [isRunning]);
   const points = useMemo(() => {
     const scale = 5;
     const defaultPoints = [
@@ -301,14 +312,19 @@ export default function CuttingScene({ shapeData = null, isRunning, cuttingSpeed
 
   return (
     <div style={{ width: "100%", height: 400 }}>
-  <Canvas camera={{ position: [0, -70, 40], fov: 50 }}>
+      <Canvas camera={{ position: [0, -70, 40], fov: 50 }}>
         <ambientLight intensity={0.5} />
         <directionalLight position={[10, 10, 10]} intensity={1} />
 
-        {/* Workpiece (box) */}
-        <DreiBox args={[100, 80, 10]} position={[0, 0, 0]}>
-          <meshStandardMaterial color="#64748b" />
-        </DreiBox>
+        {/* Workpiece (box) - only show if not cutout */}
+        {!showCutout && (
+          <DreiBox args={[100, 80, 10]} position={[0, 0, 0]}>
+            <meshStandardMaterial color="#64748b" />
+          </DreiBox>
+        )}
+
+        {/* Show cutout shape after simulation completes */}
+        {showCutout && <CutoutShape points={points} />}
 
         <CuttingPath points={points} />
         <CuttingTool
@@ -319,6 +335,7 @@ export default function CuttingScene({ shapeData = null, isRunning, cuttingSpeed
           parameters={parameters}
           material={material}
           onToolMove={setToolPosition}
+          onLoop={onLoop}
         />
         <SparkParticles
           position={new THREE.Vector3(toolPosition.x, toolPosition.y, toolPosition.z)}

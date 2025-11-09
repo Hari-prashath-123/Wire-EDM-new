@@ -1,3 +1,10 @@
+export interface SimulationIteration {
+  id: string;
+  parameters: EDMParameters;
+  shapeName: string;
+  material: string;
+  cutoutPoints: Point2D[];
+}
 export type PresetShape = {
   type: 'preset';
   points: Point2D[];
