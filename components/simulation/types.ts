@@ -1,3 +1,8 @@
+export type PresetShape = {
+  type: 'preset';
+  points: Point2D[];
+  name: string;
+}
 export interface Point2D {
   x: number
   y: number
@@ -19,7 +24,7 @@ export type CoordinatesShape = {
   points: Point2D[]
 }
 
-export type ShapeData = DrawnShape | FileShape | CoordinatesShape
+export type ShapeData = DrawnShape | FileShape | CoordinatesShape | PresetShape
 
 // Unified EDMParameters used across app and AI stubs (superset of fields)
 export interface EDMParameters {

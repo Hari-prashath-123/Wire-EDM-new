@@ -339,12 +339,59 @@ export default function PathBasedShapeInput({ title, acceptedFormats, onShapeCha
                   <Button
                     className="bg-emerald-600 hover:bg-emerald-700"
                     onClick={() => {
-                      // Ensure latest shape emitted then start simulation
-                      emitShape({ type: 'coordinates', points: coordPoints })
+                      // Normalize points before emitting for simulation
+                      const normalized = normalizePoints(coordPoints, 600, 300)
+                      emitShape({ type: 'coordinates', points: normalized })
                       if (onStartSimulation) onStartSimulation()
                     }}
                   >Start Simulation</Button>
                 )}
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    // Export CSV
+                    const csv = coordPoints.map(pt => `${pt.x},${pt.y}`).join('\n')
+                    const blob = new Blob([csv], { type: 'text/csv' })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = 'coordinates.csv'
+                    a.click()
+                    URL.revokeObjectURL(url)
+                  }}
+                >Export CSV</Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    document.getElementById('import-coord-csv')?.click()
+                  }}
+                >Import CSV</Button>
+                <input
+                  id="import-coord-csv"
+                  type="file"
+                  accept=".csv"
+                  style={{ display: 'none' }}
+                  onChange={e => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    const reader = new FileReader()
+                    reader.onload = evt => {
+                      const text = evt.target?.result as string
+                      const pts = text
+                        .split(/\r?\n/)
+                        .map(line => line.trim())
+                        .filter(Boolean)
+                        .map(line => {
+                          const [x, y] = line.split(',').map(Number)
+                          return { x, y }
+                        })
+                        .filter(pt => !isNaN(pt.x) && !isNaN(pt.y))
+                      setCoordPoints(pts)
+                      emitShape({ type: 'coordinates', points: pts })
+                    }
+                    reader.readAsText(file)
+                  }}
+                />
               </div>
             </div>
             <div className="space-y-4">

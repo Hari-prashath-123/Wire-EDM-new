@@ -245,16 +245,22 @@ function SparkParticles({ position, color, show }: { position: THREE.Vector3, co
 
 export default function CuttingScene({ shapeData = null, isRunning, cuttingSpeed, cuttingMethod, parameters, material }: SceneProps) {
   const points = useMemo(() => {
+    const scale = 5;
     const defaultPoints = [
       { x: -40, y: -30 }, { x: 40, y: -30 }, { x: 40, y: 30 }, { x: -40, y: 30 }, { x: -40, y: -30 },
-    ];
+    ].map(p => ({ x: p.x / scale, y: p.y / scale }));
+
     if (shapeData && 'type' in shapeData) {
-      if ((shapeData.type === 'drawn' || shapeData.type === 'coordinates') && Array.isArray((shapeData as any).points) && (shapeData as any).points.length > 1) {
-        return (shapeData as any).points as { x: number; y: number }[]; // Use provided world-space points
+      if ((shapeData.type === 'drawn' || shapeData.type === 'coordinates' || shapeData.type === 'preset') && Array.isArray((shapeData as any).points) && (shapeData as any).points.length > 1) {
+        if (shapeData.type === 'drawn') {
+          return (shapeData as any).points;
+        }
+        if (shapeData.type === 'coordinates' || shapeData.type === 'preset') {
+          return (shapeData as any).points.map((p: any) => ({ x: p.x / scale, y: p.y / scale }));
+        }
       }
     }
-    // Fallback to a built-in rectangle
-    return defaultPoints.map(p => ({ x: p.x / 5, y: p.y / 5 }));
+    return defaultPoints;
   }, [shapeData]);
 
   const [toolPosition, setToolPosition] = useState(new THREE.Vector3(0, 0, 0));

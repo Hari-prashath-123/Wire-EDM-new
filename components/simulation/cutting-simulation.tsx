@@ -53,12 +53,8 @@ export function CuttingSimulation({ cuttingMethod = "wire-edm", parameters, setP
     setShapeData(data as ShapeData)
   }
 
-  const handleSelectShape = (shape: any, params?: Record<string, number>) => {
-    setSelectedShapeId(shape.id)
-    // Generate points with parameters if provided
-    const rawPoints = typeof shape.points === 'function' ? shape.points(params) : shape.points
-    const points = rawPoints.map(([x, y]: [number, number]) => ({ x, y }))
-    setShapeData({ type: 'drawn', points })
+  const handlePresetShape = (shape: { type: string; name: string; points: any[] }) => {
+    setShapeData({ type: 'preset', name: shape.name, points: shape.points })
   }
 
   const renderShapeInput = () => {
@@ -101,14 +97,6 @@ export function CuttingSimulation({ cuttingMethod = "wire-edm", parameters, setP
     <div className="space-y-6">
       <Card className="p-6 bg-card border border-border">
         <h2 className="text-2xl font-bold mb-6">Cutting Simulation</h2>
-
-        {/* Shape Library Panel */}
-        <div className="mb-8">
-          <ShapeLibraryPanel
-            onSelectShape={handleSelectShape}
-            selectedShapeId={selectedShapeId}
-          />
-        </div>
 
         {/* 3D Canvas Container - moved to top */}
         <div className="mb-8">
@@ -170,6 +158,9 @@ export function CuttingSimulation({ cuttingMethod = "wire-edm", parameters, setP
           />
         </div>
       </Card>
+
+      {/* Shape Library Panel */}
+      <ShapeLibraryPanel onShapeChange={handleShapeChange} />
 
       {/* The Shape Input component is now rendered *below* the simulation */}
       {renderShapeInput()}
