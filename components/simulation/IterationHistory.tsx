@@ -5,6 +5,29 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { SimulationIteration } from "./types";
+import type { Point2D } from "./types";
+
+// Helper to convert array of Point2D to SVG path string, scaling and centering
+function getSvgPath(points: Point2D[], size = 40) {
+  if (!points || points.length < 2) return "";
+  // Find bounds
+  const minX = Math.min(...points.map(p => p.x));
+  const maxX = Math.max(...points.map(p => p.x));
+  const minY = Math.min(...points.map(p => p.y));
+  const maxY = Math.max(...points.map(p => p.y));
+  const w = maxX - minX || 1;
+  const h = maxY - minY || 1;
+  // Scale and center
+  const scale = 0.8 * size / Math.max(w, h);
+  const offsetX = (size - scale * w) / 2 - scale * minX;
+  const offsetY = (size - scale * h) / 2 - scale * minY;
+  const path = points.map((p, i) => {
+    const x = scale * p.x + offsetX;
+    const y = scale * p.y + offsetY;
+    return `${i === 0 ? "M" : "L"}${x},${y}`;
+  }).join(" ");
+  return path + " Z";
+}
 import CutoutShape from "./CutoutShape";
 
 interface IterationHistoryProps {
@@ -55,9 +78,11 @@ export const IterationHistory: React.FC<IterationHistoryProps> = ({ iterations, 
                     <span>Current: <span className="text-foreground">{iter.parameters.current}A</span></span>
                     <span>Speed: <span className="text-foreground">{iter.parameters.wireSpeed}</span></span>
                   </div>
-                  {/* Render the actual cutout shape for this iteration */}
-                  <div style={{ width: 120, height: 60 }}>
-                    <CutoutShape points={iter.cutoutPoints} />
+                  {/* SVG preview of cutout shape for this iteration */}
+                  <div style={{ width: 60, height: 40 }}>
+                    <svg width={60} height={40} viewBox="0 0 40 40">
+                      <path d={getSvgPath(iter.points)} fill="#64748b" stroke="#334155" strokeWidth={1} />
+                    </svg>
                   </div>
                 </div>
               ))}

@@ -4,6 +4,7 @@ export interface SimulationIteration {
   shapeName: string;
   material: string;
   cutoutPoints: Point2D[];
+  points: Point2D[];
 }
 export type PresetShape = {
   type: 'preset';

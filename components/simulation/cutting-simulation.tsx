@@ -25,10 +25,18 @@ interface CuttingSimulationProps {
   onStopSimulation?: () => void;
   cuttingSpeed?: number;
   onCuttingSpeedChange?: (value: number) => void;
-  onSaveIteration?: (iterationData: { parameters: EDMParameters; material: string; shapeName: string; cutoutPoints: { x: number; y: number }[] }) => void;
+  onSaveIteration?: (iterationData: { parameters: EDMParameters; material: string; shapeName: string; cutoutPoints: { x: number; y: number }[]; points: { x: number; y: number }[] }) => void;
 }
 
 export function CuttingSimulation({ cuttingMethod = "wire-edm", parameters, setParameters, material, isRunning, onToggleSimulation, onStopSimulation, cuttingSpeed, onCuttingSpeedChange, onSaveIteration }: CuttingSimulationProps) {
+  // Helper to extract shape info
+  const getShapeInfo = (shape: ShapeData | null) => {
+    if (!shape) return { name: '', points: [] };
+    if ('points' in shape && Array.isArray(shape.points)) {
+      return { name: 'name' in shape && typeof shape.name === 'string' ? shape.name : '', points: shape.points };
+    }
+    return { name: '', points: [] };
+  };
   const [localIsRunning, setLocalIsRunning] = useState(false)
   const [shapeData, setShapeData] = useState<ShapeData | null>(null)
   const [selectedShapeId, setSelectedShapeId] = useState<string | undefined>(undefined)
@@ -123,16 +131,13 @@ export function CuttingSimulation({ cuttingMethod = "wire-edm", parameters, setP
                 material={material}
                 onLoop={() => {
                   if (onSaveIteration) {
-                    // Get the actual points used for the cutout
-                    let cutoutPoints: { x: number; y: number }[] = [];
-                    if (shapeData && 'points' in shapeData && Array.isArray((shapeData as any).points)) {
-                      cutoutPoints = (shapeData as any).points;
-                    }
+                    const shapeInfo = getShapeInfo(shapeData);
                     onSaveIteration({
                       parameters,
                       material,
-                      shapeName: getShapeName(shapeData),
-                      cutoutPoints
+                      shapeName: shapeInfo.name,
+                      cutoutPoints: shapeInfo.points,
+                      points: shapeInfo.points,
                     });
                   }
                 }}

@@ -315,35 +315,35 @@ export default function CuttingScene({ shapeData = null, isRunning, cuttingSpeed
       <Canvas camera={{ position: [0, -70, 40], fov: 50 }}>
         <ambientLight intensity={0.5} />
         <directionalLight position={[10, 10, 10]} intensity={1} />
-
-        {/* Workpiece (box) - only show if not cutout */}
-        {!showCutout && (
-          <DreiBox args={[100, 80, 10]} position={[0, 0, 0]}>
-            <meshStandardMaterial color="#64748b" />
-          </DreiBox>
+        {showCutout ? (
+          <>
+            <CutoutShape points={points} />
+            <OrbitControls />
+          </>
+        ) : (
+          <>
+            <DreiBox args={[100, 80, 10]} position={[0, 0, 0]}>
+              <meshStandardMaterial color="#64748b" />
+            </DreiBox>
+            <CuttingPath points={points} />
+            <CuttingTool
+              points={points}
+              isRunning={isRunning}
+              cuttingSpeed={cuttingSpeed}
+              cuttingMethod={cuttingMethod}
+              parameters={parameters}
+              material={material}
+              onToolMove={setToolPosition}
+              onLoop={onLoop}
+            />
+            <SparkParticles
+              position={new THREE.Vector3(toolPosition.x, toolPosition.y, toolPosition.z)}
+              color={getMethodVisuals(cuttingMethod).sparkColor}
+              show={isRunning && getMethodVisuals(cuttingMethod).showSparks}
+            />
+            <OrbitControls />
+          </>
         )}
-
-        {/* Show cutout shape after simulation completes */}
-        {showCutout && <CutoutShape points={points} />}
-
-        <CuttingPath points={points} />
-        <CuttingTool
-          points={points}
-          isRunning={isRunning}
-          cuttingSpeed={cuttingSpeed}
-          cuttingMethod={cuttingMethod}
-          parameters={parameters}
-          material={material}
-          onToolMove={setToolPosition}
-          onLoop={onLoop}
-        />
-        <SparkParticles
-          position={new THREE.Vector3(toolPosition.x, toolPosition.y, toolPosition.z)}
-          color={getMethodVisuals(cuttingMethod).sparkColor}
-          show={isRunning && getMethodVisuals(cuttingMethod).showSparks}
-        />
-
-        <OrbitControls />
       </Canvas>
     </div>
   );

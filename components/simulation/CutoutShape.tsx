@@ -26,11 +26,8 @@ export default function CutoutShape({ points }: CutoutShapeProps) {
   if (!shape) return null
 
     return (
-      <mesh position={[0, 0, -5]}>
-        {/* Correct usage: <meshStandardMaterial /> should be a child of <Extrude /> */}
-        <Extrude args={[shape, extrudeSettings]}>
-          <meshStandardMaterial color="#64748b" />
-        </Extrude>
-      </mesh>
+      <Extrude args={[shape, extrudeSettings]} position={[0, 0, -5]}>
+        <meshStandardMaterial color="#64748b" />
+      </Extrude>
     )
 }
