@@ -12,6 +12,7 @@ import MillingShapeInput from "@/components/simulation/milling-shape-input"
 import Scene from "./scene"
 import type { ShapeData } from './types'
 import type { EDMParameters } from "@/components/simulation/types"
+import { ShapeLibraryPanel } from "@/components/simulation/ShapeLibraryPanel"
 
 interface CuttingSimulationProps {
   cuttingMethod?: string;
@@ -28,6 +29,7 @@ interface CuttingSimulationProps {
 export function CuttingSimulation({ cuttingMethod = "wire-edm", parameters, setParameters, material, isRunning, onToggleSimulation, onStopSimulation, cuttingSpeed, onCuttingSpeedChange }: CuttingSimulationProps) {
   const [localIsRunning, setLocalIsRunning] = useState(false)
   const [shapeData, setShapeData] = useState<ShapeData | null>(null)
+  const [selectedShapeId, setSelectedShapeId] = useState<string | undefined>(undefined)
 
   const running = isRunning ?? localIsRunning
 
@@ -47,8 +49,16 @@ export function CuttingSimulation({ cuttingMethod = "wire-edm", parameters, setP
   }
 
   const handleShapeChange = (data: unknown) => {
-    console.log("[v0] Shape data updated:", data)
+    setSelectedShapeId(undefined)
     setShapeData(data as ShapeData)
+  }
+
+  const handleSelectShape = (shape: any, params?: Record<string, number>) => {
+    setSelectedShapeId(shape.id)
+    // Generate points with parameters if provided
+    const rawPoints = typeof shape.points === 'function' ? shape.points(params) : shape.points
+    const points = rawPoints.map(([x, y]: [number, number]) => ({ x, y }))
+    setShapeData({ type: 'drawn', points })
   }
 
   const renderShapeInput = () => {
@@ -91,6 +101,14 @@ export function CuttingSimulation({ cuttingMethod = "wire-edm", parameters, setP
     <div className="space-y-6">
       <Card className="p-6 bg-card border border-border">
         <h2 className="text-2xl font-bold mb-6">Cutting Simulation</h2>
+
+        {/* Shape Library Panel */}
+        <div className="mb-8">
+          <ShapeLibraryPanel
+            onSelectShape={handleSelectShape}
+            selectedShapeId={selectedShapeId}
+          />
+        </div>
 
         {/* 3D Canvas Container - moved to top */}
         <div className="mb-8">
