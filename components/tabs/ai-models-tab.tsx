@@ -13,13 +13,19 @@ interface AIModelsTabProps {
 export default function AIModelsTab({ onTrainModel, trainedModels = {} }: AIModelsTabProps) {
   const [selectedModel, setSelectedModel] = useState<string>("ANN")
   const [isTraining, setIsTraining] = useState(false)
+  const [uploadedData, setUploadedData] = useState<any[] | null>(null)
 
   const handleTrain = async () => {
     if (!onTrainModel) return
     setIsTraining(true)
     const modelKey = selectedModel.toUpperCase()
-    await onTrainModel(modelKey, { useRealData: true })
+    await onTrainModel(modelKey, { useRealData: !uploadedData, uploadedData })
     setIsTraining(false)
+  }
+
+  // Handler to receive parsed CSV data from AIModelPanel
+  const handleUpload = (data: any[]) => {
+    setUploadedData(data)
   }
 
   return (
@@ -29,6 +35,8 @@ export default function AIModelsTab({ onTrainModel, trainedModels = {} }: AIMode
         onSelectModel={(m) => setSelectedModel(m.toUpperCase())}
         onTrain={handleTrain}
         isTraining={isTraining}
+        onUpload={handleUpload}
+        uploadedData={uploadedData}
       />
       <ModelComparison /* could be enhanced to consume trainedModels */ />
     </div>

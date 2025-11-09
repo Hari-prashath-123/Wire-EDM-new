@@ -88,16 +88,16 @@ export default function Home() {
 
     switch (modelType) {
       case 'SVM':
-        model = await trainSVM(useRealData);
+        model = await trainSVM(useRealData, uploadedData);
         break;
       case 'ANN':
-        model = await trainANN(useRealData);
+        model = await trainANN(useRealData, undefined, uploadedData);
         break;
       case 'ELM':
-        model = await trainELM(useRealData);
+        model = await trainELM(useRealData, uploadedData);
         break;
       case 'GA':
-        model = await trainGA(useRealData);
+        model = await trainGA(useRealData, uploadedData);
         break;
       default:
         return;

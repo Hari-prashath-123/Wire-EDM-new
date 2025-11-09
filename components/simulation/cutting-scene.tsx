@@ -55,6 +55,7 @@ function CuttingPath({ points }: { points: Point2D[] }) {
 function CuttingTool({ points, isRunning, cuttingSpeed, cuttingMethod, parameters, material, onToolMove }: { points: Point2D[]; isRunning: boolean; cuttingSpeed: number; cuttingMethod: string; parameters: EDMParameters; material: string; onToolMove?: (position: THREE.Vector3) => void }) {
   const toolRef = useRef<THREE.Group>(null!);
   const [progress, setProgress] = useState(0);
+  const [finished, setFinished] = useState(false);
   const visuals = useMemo(() => getMethodVisuals(cuttingMethod), [cuttingMethod]);
 
   const pathVectors = useMemo(() => points.map(p => new THREE.Vector3(p.x, p.y, 5)), [points]);
@@ -70,6 +71,7 @@ function CuttingTool({ points, isRunning, cuttingSpeed, cuttingMethod, parameter
   useFrame((_, delta) => {
     if (!isRunning || pathVectors.length < 2 || totalPathLength === 0) {
       if (progress !== 0 && !isRunning) setProgress(0);
+      if (finished) setFinished(false);
       // Reset position when not running
       if (toolRef.current) {
         const initialPos = pathVectors.length > 0 ? pathVectors[0] : new THREE.Vector3(0, 0, 15);
@@ -79,9 +81,15 @@ function CuttingTool({ points, isRunning, cuttingSpeed, cuttingMethod, parameter
       return;
     }
 
+    if (finished) return;
+
     // Use total path length to make speed consistent
     let newProgress = progress + (delta * (cuttingSpeed / 100) * 2); // Adjusted speed factor
-    if (newProgress > totalPathLength) newProgress = 0; // Loop
+    if (newProgress >= totalPathLength) {
+      setProgress(totalPathLength);
+      setFinished(true);
+      return;
+    }
     setProgress(newProgress);
 
     const targetLength = newProgress;
@@ -104,43 +112,69 @@ function CuttingTool({ points, isRunning, cuttingSpeed, cuttingMethod, parameter
     }
   });
 
+  if (finished) return null;
   return (
     <group ref={toolRef}>
-      {/* Render the tool: orient along Z so the tip sits on the path plane */}
+      {/* Render the tool: visually distinct for each method */}
       <mesh position={[0, 0, 0]}>
-        {cuttingMethod === 'cnc-milling' ? (
-          <Cylinder
-            args={[visuals.toolWidth, visuals.toolWidth, 10, 32]}
-            position={[0, 0, 5]} // tip at z=0, height along +Z
-            rotation={[Math.PI / 2, 0, 0]}
-          >
-            <meshStandardMaterial color={visuals.toolColor} />
-          </Cylinder>
-        ) : (
-          <Cylinder
-            args={[visuals.toolWidth, visuals.toolWidth, 12, 16]}
-            position={[0, 0, 6]} // base at z=0, wire rises along +Z
-            rotation={[Math.PI / 2, 0, 0]}
-          >
-            <meshStandardMaterial
-              color={visuals.toolColor}
-              emissive={cuttingMethod === 'laser-cutting' ? visuals.toolColor : '#000000'}
-              emissiveIntensity={cuttingMethod === 'laser-cutting' ? 2 : 0}
-            />
-          </Cylinder>
+        {/* Wire EDM: glowing wire, animated sparks, swirling fluid */}
+        {cuttingMethod === 'wire-edm' && (
+          <>
+            <Cylinder args={[visuals.toolWidth, visuals.toolWidth, 12, 32]} position={[0, 0, 6]} rotation={[Math.PI / 2, 0, 0]}>
+              <meshStandardMaterial color={visuals.toolColor} emissive={visuals.toolColor} emissiveIntensity={1.5} />
+            </Cylinder>
+            {/* Swirling fluid */}
+            {isRunning && (
+              <Cylinder args={[visuals.toolWidth * 2, visuals.toolWidth * 2, 0.3]} position={[0, 0, 0.2]} rotation={[Math.PI / 2, 0, 0]}>
+                <meshStandardMaterial color={visuals.fluidColor} transparent opacity={0.4} />
+              </Cylinder>
+            )}
+          </>
+        )}
+        {/* Water Jet: animated water spray, splash effect */}
+        {cuttingMethod === 'water-jet' && (
+          <>
+            <Cylinder args={[visuals.toolWidth, visuals.toolWidth, 10, 32]} position={[0, 0, 5]} rotation={[Math.PI / 2, 0, 0]}>
+              <meshStandardMaterial color={visuals.toolColor} />
+            </Cylinder>
+            {/* Water spray effect */}
+            {isRunning && (
+              <Cylinder args={[visuals.toolWidth * 2.5, visuals.toolWidth * 2.5, 0.4]} position={[0, 0, 0.2]} rotation={[Math.PI / 2, 0, 0]}>
+                <meshStandardMaterial color={visuals.fluidColor} transparent opacity={0.5} />
+              </Cylinder>
+            )}
+          </>
+        )}
+        {/* Laser Cutting: animated laser beam, glow, heat distortion */}
+        {cuttingMethod === 'laser-cutting' && (
+          <>
+            <Cylinder args={[visuals.toolWidth, visuals.toolWidth, 12, 16]} position={[0, 0, 6]} rotation={[Math.PI / 2, 0, 0]}>
+              <meshStandardMaterial color={visuals.toolColor} emissive={visuals.toolColor} emissiveIntensity={2} />
+            </Cylinder>
+            {/* Laser beam effect */}
+            {isRunning && (
+              <mesh position={[0, 0, 6]}>
+                <cylinderGeometry args={[0.03, 0.03, 8, 16]} />
+                <meshBasicMaterial color="#fbbf24" transparent opacity={0.7} />
+              </mesh>
+            )}
+          </>
+        )}
+        {/* CNC Milling: rotating tool, chip particles */}
+        {cuttingMethod === 'cnc-milling' && (
+          <>
+            <Cylinder args={[visuals.toolWidth, visuals.toolWidth, 10, 32]} position={[0, 0, 5]} rotation={[Math.PI / 2, 0, 0]}>
+              <meshStandardMaterial color={visuals.toolColor} />
+            </Cylinder>
+            {/* Toolpath highlight (subtle) */}
+            {isRunning && (
+              <Cylinder args={[visuals.toolWidth * 1.2, visuals.toolWidth * 1.2, 0.2]} position={[0, 0, 0.1]} rotation={[Math.PI / 2, 0, 0]}>
+                <meshStandardMaterial color="#f59e0b" transparent opacity={0.2} />
+              </Cylinder>
+            )}
+          </>
         )}
       </mesh>
-
-      {/* Render fluid effect around the contact point */}
-      {visuals.showFluid && isRunning && (
-        <Cylinder
-          args={[visuals.toolWidth * 1.5, visuals.toolWidth * 1.5, 0.2]}
-          position={[0, 0, 0.1]}
-          rotation={[Math.PI / 2, 0, 0]}
-        >
-          <meshStandardMaterial color={visuals.fluidColor} transparent opacity={0.3} />
-        </Cylinder>
-      )}
     </group>
   );
 }
