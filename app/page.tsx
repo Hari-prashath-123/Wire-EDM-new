@@ -32,6 +32,7 @@ export default function Home() {
     dielectricFlow: 10,
     wireOffset: 2.5,
     sparkGap: 0.05,
+    materialThickness: 10,
   })
   const [selectedMaterial, setSelectedMaterial] = useState<string>('Steel')
 

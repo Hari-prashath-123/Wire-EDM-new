@@ -1,3 +1,20 @@
+// 1. ADD THIS HELPER FUNCTION
+function getMaterialColor(materialName: string): string {
+  switch (materialName?.toLowerCase()) {
+    case "aluminum":
+      return "#B0B0B0"; // Light gray
+    case "steel":
+      return "#7A7A7A"; // Darker gray
+    case "copper":
+      return "#B87333"; // Coppery brown
+    case "titanium":
+      return "#878681"; // Grayish
+    case "d2 tool steel":
+      return "#64748b"; // Default slate gray
+    default:
+      return "#64748b"; // Default slate gray
+  }
+}
 "use client"
 
 function getMethodVisuals(cuttingMethod: string) {
@@ -20,8 +37,13 @@ import { OrbitControls, Line, Cylinder, Box as DreiBox } from "@react-three/drei
 import * as THREE from "three"
 
 // Types
+
 import type { ShapeData, Point2D } from './types'
 import type { EDMParameters } from "@/components/simulation/types"
+
+export interface CuttingSceneProps extends SceneProps {
+  showCutout?: boolean;
+}
 
 interface SceneProps {
   shapeData?: ShapeData | null
@@ -31,20 +53,21 @@ interface SceneProps {
   parameters: EDMParameters
   material: string
   onLoop?: () => void
+  materialThickness?: number
 }
 
-function CuttingPath({ points }: { points: Point2D[] }) {
+function CuttingPath({ points, materialThickness = 10 }: { points: Point2D[], materialThickness?: number }) {
   const pathPoints = useMemo(() => {
-    // Points come in world space matching workpiece X/Y. Place them on the top surface z=5.
-    return points.map(p => new THREE.Vector3(p.x, p.y, 5));
-  }, [points]);
+    // Points come in world space matching workpiece X/Y. Place them on the top surface z=...
+    return points.map(p => new THREE.Vector3(p.x, p.y, materialThickness / 2));
+  }, [points, materialThickness]);
 
   if (pathPoints.length < 2) return null;
 
   return (
     <Line
       points={pathPoints}
-      color="#f43f5e" // Use a bright pink/red
+      color="#f43f5e"
       lineWidth={2}
       dashed
       dashScale={5}
@@ -54,13 +77,13 @@ function CuttingPath({ points }: { points: Point2D[] }) {
   );
 }
 
-function CuttingTool({ points, isRunning, cuttingSpeed, cuttingMethod, parameters, material, onToolMove, onLoop }: { points: Point2D[]; isRunning: boolean; cuttingSpeed: number; cuttingMethod: string; parameters: EDMParameters; material: string; onToolMove?: (position: THREE.Vector3) => void; onLoop?: () => void }) {
+function CuttingTool({ points, isRunning, cuttingSpeed, cuttingMethod, parameters, material, onToolMove, onLoop, materialThickness = 10 }: { points: Point2D[]; isRunning: boolean; cuttingSpeed: number; cuttingMethod: string; parameters: EDMParameters; material: string; onToolMove?: (position: THREE.Vector3) => void; onLoop?: () => void; materialThickness?: number }) {
   const toolRef = useRef<THREE.Group>(null!);
   const [progress, setProgress] = useState(0);
   const [finished, setFinished] = useState(false);
   const visuals = useMemo(() => getMethodVisuals(cuttingMethod), [cuttingMethod]);
 
-  const pathVectors = useMemo(() => points.map(p => new THREE.Vector3(p.x, p.y, 5)), [points]);
+  const pathVectors = useMemo(() => points.map(p => new THREE.Vector3(p.x, p.y, materialThickness / 2)), [points, materialThickness]);
 
   const totalPathLength = useMemo(() => {
     let length = 0;
@@ -184,9 +207,9 @@ function CuttingTool({ points, isRunning, cuttingSpeed, cuttingMethod, parameter
   );
 }
 
-function SparkParticles({ position, color, show }: { position: THREE.Vector3, color: string, show: boolean }) {
+function SparkParticles({ position, color, show, materialThickness = 10 }: { position: THREE.Vector3, color: string, show: boolean, materialThickness?: number }) {
   const pointsRef = useRef<THREE.Points>(null!);
-  const workpieceSurfaceZ = 5;
+  const workpieceSurfaceZ = materialThickness / 2;
   const particlePool = useMemo(() => new Array(800).fill(0).map(() => ({
     position: new THREE.Vector3(1000, 1000, 1000),
     velocity: new THREE.Vector3(),
@@ -282,15 +305,9 @@ function SparkParticles({ position, color, show }: { position: THREE.Vector3, co
   );
 }
 
-export default function CuttingScene({ shapeData = null, isRunning, cuttingSpeed, cuttingMethod, parameters, material, onLoop }: SceneProps) {
-  const [showCutout, setShowCutout] = useState(false);
-  useEffect(() => {
-    if (!isRunning) {
-      setShowCutout(false);
-    }
-  }, [isRunning]);
+export default function CuttingScene({ shapeData = null, isRunning, cuttingSpeed, cuttingMethod, parameters, material, onLoop, showCutout = false, materialThickness = 10 }: CuttingSceneProps) {
   const points = useMemo(() => {
-    const scale = 5;
+    const scale = 10;
     const defaultPoints = [
       { x: -40, y: -30 }, { x: 40, y: -30 }, { x: 40, y: 30 }, { x: -40, y: 30 }, { x: -40, y: -30 },
     ].map(p => ({ x: p.x / scale, y: p.y / scale }));
@@ -309,23 +326,36 @@ export default function CuttingScene({ shapeData = null, isRunning, cuttingSpeed
   }, [shapeData]);
 
   const [toolPosition, setToolPosition] = useState(new THREE.Vector3(0, 0, 0));
+  const [showCutoutState, setShowCutoutState] = useState(showCutout);
+
+  // Reset showCutoutState when simulation starts
+  useEffect(() => {
+    if (isRunning) {
+      setShowCutoutState(false);
+    }
+  }, [isRunning]);
+
+  // 2. ADD THIS useMemo
+  const materialColor = useMemo(() => getMaterialColor(material), [material]);
 
   return (
     <div style={{ width: "100%", height: 400 }}>
       <Canvas camera={{ position: [0, -70, 40], fov: 50 }}>
         <ambientLight intensity={0.5} />
         <directionalLight position={[10, 10, 10]} intensity={1} />
-        {showCutout ? (
+        {showCutoutState ? (
           <>
-            <CutoutShape points={points} />
+            {/* 4. PASS THE PROP HERE */}
+            <CutoutShape points={points} materialThickness={materialThickness} materialColor={materialColor} />
             <OrbitControls />
           </>
         ) : (
           <>
-            <DreiBox args={[100, 80, 10]} position={[0, 0, 0]}>
-              <meshStandardMaterial color="#64748b" />
+            <DreiBox args={[100, 80, materialThickness]} position={[0, 0, 0]}>
+              {/* 3. USE THE COLOR HERE */}
+              <meshStandardMaterial color={materialColor} />
             </DreiBox>
-            <CuttingPath points={points} />
+            <CuttingPath points={points} materialThickness={materialThickness} />
             <CuttingTool
               points={points}
               isRunning={isRunning}
@@ -334,12 +364,17 @@ export default function CuttingScene({ shapeData = null, isRunning, cuttingSpeed
               parameters={parameters}
               material={material}
               onToolMove={setToolPosition}
-              onLoop={onLoop}
+              onLoop={() => {
+                setShowCutoutState(true);
+                if (onLoop) onLoop();
+              }}
+              materialThickness={materialThickness}
             />
             <SparkParticles
               position={new THREE.Vector3(toolPosition.x, toolPosition.y, toolPosition.z)}
               color={getMethodVisuals(cuttingMethod).sparkColor}
               show={isRunning && getMethodVisuals(cuttingMethod).showSparks}
+              materialThickness={materialThickness}
             />
             <OrbitControls />
           </>

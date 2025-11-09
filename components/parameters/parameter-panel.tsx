@@ -83,6 +83,14 @@ const SLIDER_CONFIG: Array<{
     max: 0.2,
     step: 0.01,
   },
+  {
+    key: "materialThickness" as keyof EDMParameters,
+    label: "Material Thickness",
+    unit: "mm",
+    min: 1,
+    max: 100,
+    step: 1,
+  }
 ]
 
 export default function ParameterPanel({ parameters, onParameterChange }: Props) {

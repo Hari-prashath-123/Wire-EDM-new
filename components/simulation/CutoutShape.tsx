@@ -6,28 +6,28 @@ import * as THREE from "three"
 import type { Point2D } from './types'
 
 interface CutoutShapeProps {
-  points: Point2D[]
+  points: Point2D[];
+  materialThickness: number;
+  materialColor?: string;
 }
 
-export default function CutoutShape({ points }: CutoutShapeProps) {
+export default function CutoutShape({ points, materialThickness = 10, materialColor = "#64748b" }: CutoutShapeProps) {
   const shape = useMemo(() => {
     if (points.length < 2) return null
-    // Convert 2D points to THREE.Vector2
     const shapePoints = points.map(p => new THREE.Vector2(p.x, p.y))
-    // Create a shape from these points
     return new THREE.Shape(shapePoints)
   }, [points])
 
   const extrudeSettings = useMemo(() => ({
-    depth: 10, // Match the original box height
+    depth: materialThickness,
     bevelEnabled: false,
-  }), [])
+  }), [materialThickness])
 
   if (!shape) return null
 
-    return (
-      <Extrude args={[shape, extrudeSettings]} position={[0, 0, -5]}>
-        <meshStandardMaterial color="#64748b" />
-      </Extrude>
-    )
+  return (
+    <Extrude args={[shape, extrudeSettings]} position={[0, 0, -materialThickness / 2]}>
+      <meshStandardMaterial color={materialColor} />
+    </Extrude>
+  )
 }

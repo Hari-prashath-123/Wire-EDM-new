@@ -44,6 +44,7 @@ export interface EDMParameters {
   dielectricFlow: number
   wireOffset: number
   sparkGap: number
+  materialThickness: number
 }
 
 // Metrics derived from parameters and simulation
