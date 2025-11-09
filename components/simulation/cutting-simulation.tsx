@@ -12,19 +12,21 @@ import Scene from "./scene"
 import type { ShapeData } from './types'
 
 interface CuttingSimulationProps {
-  cuttingMethod?: string
+  cuttingMethod?: string;
+  parameters: { speed: number, power: number, precision: number };
+  setParameters: (params: React.SetStateAction<{ speed: number; power: number; precision: number }>) => void;
+  material: string;
 }
 
-export default function CuttingSimulation({ cuttingMethod = "wire-edm" }: CuttingSimulationProps) {
+export function CuttingSimulation({ cuttingMethod = "wire-edm", parameters, setParameters, material }: CuttingSimulationProps) {
   const [isRunning, setIsRunning] = useState(false)
-  const [cuttingSpeed, setCuttingSpeed] = useState(50)
   const [shapeData, setShapeData] = useState<ShapeData | null>(null)
 
   const handleStart = () => setIsRunning(true)
   const handleStop = () => setIsRunning(false)
   const handleReset = () => {
     setIsRunning(false)
-    setCuttingSpeed(50)
+    setParameters((prev: any) => ({ ...prev, speed: 50 }))
   }
 
   const handleShapeChange = (data: unknown) => {
@@ -70,6 +72,23 @@ export default function CuttingSimulation({ cuttingMethod = "wire-edm" }: Cuttin
       <Card className="p-6 bg-card border border-border">
         <h2 className="text-2xl font-bold mb-6">Cutting Simulation</h2>
 
+        {/* 3D Canvas Container - moved to top */}
+        <div className="mb-8">
+          <div
+            className="bg-black rounded-lg border border-border"
+            style={{ width: "800px", height: "400px", maxWidth: "100%" }}
+          >
+            <Scene
+              shapeData={shapeData}
+              isRunning={isRunning}
+              cuttingSpeed={parameters.speed}
+              cuttingMethod={cuttingMethod}
+              parameters={parameters}
+              material={material}
+            />
+          </div>
+        </div>
+
         {/* Control Buttons */}
         <div className="flex gap-3 mb-8">
           <Button
@@ -98,31 +117,16 @@ export default function CuttingSimulation({ cuttingMethod = "wire-edm" }: Cuttin
         <div className="mb-8 max-w-xs">
           <div className="flex justify-between items-center mb-3">
             <Label className="text-base font-semibold">Cutting Speed Control</Label>
-            <span className="text-sm font-medium text-accent">{cuttingSpeed}%</span>
+            <span className="text-sm font-medium text-accent">{parameters.speed}%</span>
           </div>
           <Slider
-            value={[cuttingSpeed]}
-            onValueChange={(value) => setCuttingSpeed(value[0])}
+            value={[parameters.speed]}
+            onValueChange={(value) => setParameters((prev: any) => ({ ...prev, speed: value[0] }))}
             min={0}
             max={100}
             step={1}
             className="w-full"
           />
-        </div>
-
-        {/* 3D Canvas Container - THIS IS THE UPDATED PART */}
-        <div className="mt-8 pt-8 border-t border-border">
-          <div
-            className="bg-black rounded-lg border border-border"
-            style={{ width: "800px", height: "400px", maxWidth: "100%" }}
-          >
-            {/* The placeholder div is replaced with the Scene component */}
-            <Scene
-              shapeData={shapeData}
-              isRunning={isRunning}
-              cuttingSpeed={cuttingSpeed}
-            />
-          </div>
         </div>
       </Card>
 

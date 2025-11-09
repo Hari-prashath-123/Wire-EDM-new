@@ -23,6 +23,8 @@ interface SceneProps {
   isRunning: boolean
   cuttingSpeed: number
   cuttingMethod: string
+  parameters: { speed: number; power: number; precision: number }
+  material: string
 }
 
 function CuttingPath({ points }: { points: Point2D[] }) {
@@ -46,7 +48,7 @@ function CuttingPath({ points }: { points: Point2D[] }) {
   );
 }
 
-function CuttingTool({ points, isRunning, cuttingSpeed, cuttingMethod }: { points: Point2D[]; isRunning: boolean; cuttingSpeed: number; cuttingMethod: string }) {
+function CuttingTool({ points, isRunning, cuttingSpeed, cuttingMethod, parameters, material, onToolMove }: { points: Point2D[]; isRunning: boolean; cuttingSpeed: number; cuttingMethod: string; parameters: { speed: number; power: number; precision: number }; material: string; onToolMove?: (position: THREE.Vector3) => void }) {
   const toolRef = useRef<THREE.Group>(null!);
   const [progress, setProgress] = useState(0);
   const visuals = useMemo(() => getMethodVisuals(cuttingMethod), [cuttingMethod]);
@@ -68,6 +70,7 @@ function CuttingTool({ points, isRunning, cuttingSpeed, cuttingMethod }: { point
       if (toolRef.current) {
         const initialPos = pathVectors.length > 0 ? pathVectors[0] : new THREE.Vector3(0, 0, 15);
         toolRef.current.position.set(initialPos.x, initialPos.y, initialPos.z);
+        if (onToolMove) onToolMove(initialPos);
       }
       return;
     }
@@ -87,7 +90,7 @@ function CuttingTool({ points, isRunning, cuttingSpeed, cuttingMethod }: { point
         const segmentProgress = (targetLength - currentLength) / segmentLength;
         const newPosition = new THREE.Vector3().lerpVectors(segmentStart, segmentEnd, segmentProgress);
         toolRef.current.position.set(newPosition.x, newPosition.y, newPosition.z);
-
+        if (onToolMove) onToolMove(newPosition);
         if (cuttingMethod === 'cnc-milling' && toolRef.current.children[0]) {
           toolRef.current.children[0].rotation.z += 0.5; // Spin the tool
         }
@@ -122,12 +125,6 @@ function CuttingTool({ points, isRunning, cuttingSpeed, cuttingMethod }: { point
           />
         </Cylinder>
       )}
-      {/* Render sparks */}
-      <SparkParticles
-        position={new THREE.Vector3(0, 0, 0)}
-        color={visuals.sparkColor}
-        show={isRunning && visuals.showSparks}
-      />
     </group>
   );
 }
@@ -135,9 +132,10 @@ function CuttingTool({ points, isRunning, cuttingSpeed, cuttingMethod }: { point
 function SparkParticles({ position, color, show }: { position: THREE.Vector3 | null, color: string, show: boolean }) {
   const pointsRef = useRef<THREE.Points>(null!);
   const bufferRef = useRef<THREE.BufferAttribute>(null!);
+  const materialRef = useRef<THREE.PointsMaterial>(null!);
 
   const particlePool = useMemo(() =>
-    new Array(300).fill(0).map(() => ({
+    new Array(800).fill(0).map(() => ({
       position: new THREE.Vector3(1000, 1000, 1000), // Start off-screen
       velocity: new THREE.Vector3(),
       life: 0,
@@ -154,8 +152,10 @@ function SparkParticles({ position, color, show }: { position: THREE.Vector3 | n
     for (const particle of particlePool) {
       if (particle.life > 0) {
         particle.position.add(particle.velocity);
+        particle.velocity.multiplyScalar(0.97); // slow down
         particle.velocity.y -= 0.002; // gravity
         particle.life -= 1;
+        // Fade out by life
       }
     }
     // Spawn new particles
@@ -168,7 +168,7 @@ function SparkParticles({ position, color, show }: { position: THREE.Vector3 | n
         (Math.random() - 0.5) * spread,
         (Math.random() - 0.2) * spread
       );
-      particle.life = 40;
+      particle.life = 50;
       particleIndex = (particleIndex + 1) % particlePool.length;
     }
     // Update geometry
@@ -185,25 +185,42 @@ function SparkParticles({ position, color, show }: { position: THREE.Vector3 | n
       }
     }
     bufferRef.current.needsUpdate = true;
+    // Set global opacity based on average life (for visual effect)
+    if (materialRef.current) {
+      let avgLife = 0;
+      let liveCount = 0;
+      for (const p of particlePool) {
+        if (p.life > 0) {
+          avgLife += p.life;
+          liveCount++;
+        }
+      }
+      materialRef.current.opacity = liveCount > 0 ? Math.max(0, avgLife / (liveCount * 50.0)) : 0.0;
+    }
   });
 
   return (
     <points ref={pointsRef}>
       <bufferGeometry>
         <bufferAttribute
-          ref={bufferRef}
           attach="attributes-position"
-          count={particlePool.length}
-          array={new Float32Array(particlePool.length * 3)}
-          itemSize={3}
+          args={[new Float32Array(particlePool.length * 3), 3]}
+          ref={bufferRef}
         />
       </bufferGeometry>
-      <pointsMaterial color={color} size={0.05} transparent depthWrite={false} blending={THREE.AdditiveBlending} />
+      <pointsMaterial
+        ref={materialRef}
+        color={color}
+        size={0.1}
+        transparent
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+      />
     </points>
   );
 }
 
-export default function CuttingScene({ shapeData = null, isRunning, cuttingSpeed, cuttingMethod }: SceneProps) {
+export default function CuttingScene({ shapeData = null, isRunning, cuttingSpeed, cuttingMethod, parameters, material }: SceneProps) {
   const points = useMemo(() => {
     const defaultPoints = [
       { x: -40, y: -30 }, { x: 40, y: -30 }, { x: 40, y: 30 }, { x: -40, y: 30 }, { x: -40, y: -30 },
@@ -214,6 +231,8 @@ export default function CuttingScene({ shapeData = null, isRunning, cuttingSpeed
     // Scale the default points to match the normalized scale
     return defaultPoints.map(p => ({ x: p.x / 5, y: p.y / 5 }));
   }, [shapeData]);
+
+  const [toolPosition, setToolPosition] = useState(new THREE.Vector3(0, 0, 0));
 
   return (
     <div style={{ width: "100%", height: 400 }}>
@@ -227,7 +246,20 @@ export default function CuttingScene({ shapeData = null, isRunning, cuttingSpeed
         </DreiBox>
 
         <CuttingPath points={points} />
-        <CuttingTool points={points} isRunning={isRunning} cuttingSpeed={cuttingSpeed} cuttingMethod={cuttingMethod} />
+        <CuttingTool
+          points={points}
+          isRunning={isRunning}
+          cuttingSpeed={cuttingSpeed}
+          cuttingMethod={cuttingMethod}
+          parameters={parameters}
+          material={material}
+          onToolMove={setToolPosition}
+        />
+        <SparkParticles
+          position={new THREE.Vector3(toolPosition.x, toolPosition.y, 0.5)}
+          color={getMethodVisuals(cuttingMethod).sparkColor}
+          show={isRunning && getMethodVisuals(cuttingMethod).showSparks}
+        />
 
         <OrbitControls />
       </Canvas>

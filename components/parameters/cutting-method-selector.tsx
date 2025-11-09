@@ -1,14 +1,11 @@
 "use client"
 
 import { Card } from "@/components/ui/card"
+import { CuttingMethod } from "@/components/simulation/types"
 
-interface CuttingMethod {
-  id: string
-  name: string
-  description: string
-}
+// Use imported CuttingMethod type for method ids
 
-const CUTTING_METHODS: CuttingMethod[] = [
+const CUTTING_METHODS: { id: CuttingMethod; name: string; description: string }[] = [
   {
     id: "wire-edm",
     name: "Wire EDM",
@@ -32,8 +29,8 @@ const CUTTING_METHODS: CuttingMethod[] = [
 ]
 
 interface Props {
-  selectedMethod: string
-  onSelectMethod: (methodId: string) => void
+  selectedMethod: CuttingMethod
+  onSelectMethod: (methodId: CuttingMethod) => void
 }
 
 export default function CuttingMethodSelector({ selectedMethod, onSelectMethod }: Props) {

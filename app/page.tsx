@@ -5,22 +5,24 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Settings, Play, Zap, BarChart3 } from "lucide-react"
 import Header from "@/components/header"
 import ParametersTab from "@/components/tabs/parameters-tab"
-import SimulationTab from "@/components/tabs/simulation-tab"
+import dynamic from "next/dynamic"
+const SimulationTab = dynamic(() => import("@/components/tabs/simulation-tab"), { ssr: false })
 import AIModelsTab from "@/components/tabs/ai-models-tab"
 import ResultsTab from "@/components/tabs/results-tab"
 import { CuttingMethod, Parameters } from "@/components/simulation/types"
 
 type Tab = "parameters" | "simulation" | "ai-models" | "results"
 
+
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("parameters")
-  const [cuttingMethod, setCuttingMethod] = useState<CuttingMethod>("path-based")
-  const [parameters, setParameters] = useState<Parameters>({
-    speed: 50,
-    power: 60,
-    precision: 70,
-  })
-  const [material, setMaterial] = useState<string>("Steel")
+  const [selectedCuttingMethod, setSelectedCuttingMethod] = useState<CuttingMethod>("path-based")
+  const [parameters, setParameters] = useState({ speed: 50, power: 60, precision: 70 })
+  const [selectedMaterial, setSelectedMaterial] = useState<string>("wire-edm")
+
+  const handleNextToSimulation = () => {
+    setActiveTab("simulation")
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground dark">
@@ -48,16 +50,22 @@ export default function Home() {
           </TabsList>
           <TabsContent value="parameters" className="mt-6">
             <ParametersTab
-              cuttingMethod={cuttingMethod}
-              setCuttingMethod={setCuttingMethod}
+              selectedMethod={selectedCuttingMethod}
+              onCuttingMethodChange={setSelectedCuttingMethod}
               parameters={parameters}
               setParameters={setParameters}
-              material={material}
-              setMaterial={setMaterial}
+              selectedMaterial={selectedMaterial}
+              setSelectedMaterial={setSelectedMaterial}
+              onNext={handleNextToSimulation}
             />
           </TabsContent>
           <TabsContent value="simulation" className="mt-6">
-            <SimulationTab cuttingMethod={cuttingMethod} />
+            <SimulationTab
+              cuttingMethod={selectedCuttingMethod}
+              parameters={parameters}
+              setParameters={setParameters}
+              material={selectedMaterial}
+            />
           </TabsContent>
           <TabsContent value="ai-models" className="mt-6">
             <AIModelsTab />
