@@ -93,6 +93,12 @@ function CuttingTool({ points, isRunning, cuttingSpeed, cuttingMethod, parameter
     return length;
   }, [pathVectors]);
 
+  // Reset progress when points change (new shape selected)
+  useEffect(() => {
+    setProgress(0);
+    setFinished(false);
+  }, [points]);
+
   useFrame((_, delta) => {
     if (!isRunning || pathVectors.length < 2 || totalPathLength === 0) {
       if (progress !== 0 && !isRunning) setProgress(0);
@@ -334,6 +340,11 @@ export default function CuttingScene({ shapeData = null, isRunning, cuttingSpeed
       setShowCutoutState(false);
     }
   }, [isRunning]);
+
+  // Reset cutting state when shape changes
+  useEffect(() => {
+    setShowCutoutState(false);
+  }, [shapeData]);
 
   // 2. ADD THIS useMemo
   const materialColor = useMemo(() => getMaterialColor(material), [material]);

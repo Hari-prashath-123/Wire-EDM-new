@@ -63,10 +63,20 @@ export function CuttingSimulation({ cuttingMethod = "wire-edm", parameters, setP
   const handleShapeChange = (data: unknown) => {
     setSelectedShapeId(undefined)
     setShapeData(data as ShapeData)
+    // Stop any running simulation when shape changes
+    if (running) {
+      if (onStopSimulation) onStopSimulation()
+      else setLocalIsRunning(false)
+    }
   }
 
   const handlePresetShape = (shape: { type: string; name: string; points: any[] }) => {
     setShapeData({ type: 'preset', name: shape.name, points: shape.points })
+    // Stop any running simulation when shape changes
+    if (running) {
+      if (onStopSimulation) onStopSimulation()
+      else setLocalIsRunning(false)
+    }
   }
 
   const getShapeName = (shape: ShapeData | null): string => {
