@@ -54,24 +54,7 @@ export default function SimulationTab({ cuttingMethod, parameters, setParameters
         onCuttingSpeedChange={onCuttingSpeedChange}
         onSaveIteration={handleSaveIteration}
       />
-      <div className="lg:col-span-1 space-y-6">
-        {/* Example PathBasedShapeInput usage; update props as needed */}
-        {/* <PathBasedShapeInput onShapeChange={handleShapeChange} workpiece={workpiece} onWorkpieceChange={setWorkpiece} /> */}
-        <ModelComparison />
-        <EnsemblePrediction
-          processMetrics={{
-            dischargeEnergy: 0,
-            dutyCycle: 0,
-            powerConsumption: 0,
-            estimatedCostPerHour: 0,
-            materialRemovalRate: 0,
-            surfaceRoughness: 0,
-            wireWearRate: 0,
-            efficiency: 0,
-          }}
-          parameters={simulationData && simulationData.parameters}
-        />
-      </div>
+      {/* Removed duplicate Model Comparison and Ensemble Prediction sections after shape library */}
       <IterationHistory
         iterations={iterations}
         maxIterations={MAX_ITERATIONS}

@@ -98,7 +98,6 @@ export const ShapeLibraryPanel: React.FC<ShapeLibraryPanelProps> = ({ onShapeCha
             }}
           >
             {config.label}
-            <div className="text-xs text-gray-400 mt-1">{staticPresetShapes[config.key]?.length ?? 0} points</div>
           </button>
         ))}
       </div>
@@ -127,26 +126,6 @@ export const ShapeLibraryPanel: React.FC<ShapeLibraryPanelProps> = ({ onShapeCha
               </div>
             ))}
           </div>
-            <div className="grid grid-cols-2 gap-4">
-              {selectedShapeConfig.params.map((param: any) => (
-                <div key={param.key} className="space-y-2">
-                  <Label htmlFor={param.key} className="text-sm font-medium text-[#d8dee9]">
-                    {param.label}
-                  </Label>
-                  <Input
-                    id={param.key}
-                    type="number"
-                    value={
-                      params[param.key] === undefined || isNaN(params[param.key])
-                        ? ''
-                        : String(params[param.key])
-                    }
-                    onChange={e => setParams(prev => ({ ...prev, [param.key]: parseFloat(e.target.value) }))}
-                    className="bg-[#3b4252] border-[#4c566a] text-white"
-                  />
-                </div>
-              ))}
-            </div>
           <button
             onClick={() => {
               const paramValues = selectedShapeConfig.params.map((p: any) => params[p.key]);
