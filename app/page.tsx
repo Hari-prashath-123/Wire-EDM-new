@@ -9,20 +9,15 @@ import dynamic from "next/dynamic"
 const SimulationTab = dynamic(() => import("@/components/tabs/simulation-tab"), { ssr: false })
 import AIModelsTab from "@/components/tabs/ai-models-tab"
 import ResultsTab from "@/components/tabs/results-tab"
-import { CuttingMethod } from "@/components/simulation/types"
-import { trainSVM, trainANN, trainELM, trainGA, ModelResult } from "@/lib/aiModels"
+import type { CuttingMethod } from "@/components/simulation/types"
+import { trainSVM, trainANN, trainELM, trainGA, type ModelResult } from "@/lib/aiModels"
 import type { EDMParameters, ProcessMetrics } from "@/components/simulation/types"
 
-// EDMParameters ported from the old project
-// Parameters state now uses the strict EDMParameters shape
-
 type Tab = "parameters" | "simulation" | "ai-models" | "results"
-
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("parameters")
   const [selectedCuttingMethod, setSelectedCuttingMethod] = useState<CuttingMethod>("path-based")
-  // Ported detailed EDMParameters state
   const [parameters, setParameters] = useState<EDMParameters>({
     voltage: 150,
     current: 25,
@@ -34,110 +29,118 @@ export default function Home() {
     sparkGap: 0.05,
     materialThickness: 10,
   })
-  const [selectedMaterial, setSelectedMaterial] = useState<string>('Steel')
+  const [selectedMaterial, setSelectedMaterial] = useState<string>("Steel")
 
-  // Additional ported state
   const [isSimulationRunning, setIsSimulationRunning] = useState(false)
   const [trainedModels, setTrainedModels] = useState<Record<string, ModelResult>>({})
   const [predictions, setPredictions] = useState<Record<string, any>>({})
   const [cuttingSpeed, setCuttingSpeed] = useState(1.0)
-  const [cuttingMethod, setCuttingMethod] = useState<'wire' | 'path-based' | string>('wire')
+  const [cuttingMethod, setCuttingMethod] = useState<"wire" | "path-based" | string>("wire")
   const [analyticsData, setAnalyticsData] = useState<Array<any>>([])
 
   const handleNextToSimulation = () => {
     setActiveTab("simulation")
   }
 
-  // Ported processMetrics useMemo from old project
-  // Deterministic metrics: avoid Math.random/Date.now during SSR by computing only from stable inputs.
   const processMetrics: ProcessMetrics = useMemo(() => {
     const dischargeEnergy = (parameters.voltage * parameters.current * parameters.pulseOnTime) / 1000
     const dutyCycle = (parameters.pulseOnTime / (parameters.pulseOnTime + parameters.pulseOffTime)) * 100
     const powerConsumption = (parameters.voltage * parameters.current) / 1000
-    const estimatedCostPerHour = powerConsumption * 0.12 + 15 + (parameters.wireSpeed * 0.02)
+    const estimatedCostPerHour = powerConsumption * 0.12 + 15 + parameters.wireSpeed * 0.02
     const materialRemovalRate = (dischargeEnergy * dutyCycle * parameters.current) / 100
-    const surfaceRoughness = Math.max(0.1, 5 - (parameters.voltage / 100) + (parameters.pulseOnTime / 20))
+    const surfaceRoughness = Math.max(0.1, 5 - parameters.voltage / 100 + parameters.pulseOnTime / 20)
     const wireWearRate = (parameters.current * parameters.voltage) / Math.max(parameters.wireSpeed * 100, 1)
     const efficiency = Math.min(100, (dutyCycle * parameters.dielectricFlow * parameters.wireSpeed) / 1000)
-    return { dischargeEnergy, dutyCycle, powerConsumption, estimatedCostPerHour, materialRemovalRate, surfaceRoughness, wireWearRate, efficiency }
+    return {
+      dischargeEnergy,
+      dutyCycle,
+      powerConsumption,
+      estimatedCostPerHour,
+      materialRemovalRate,
+      surfaceRoughness,
+      wireWearRate,
+      efficiency,
+    }
   }, [parameters])
 
-  // Ported handlers
-  const handleParameterChange = useCallback((key: keyof EDMParameters, value: number) => {
-    setParameters(prev => {
-      const next = { ...prev, [key]: value }
-      const newPredictions: Record<string, any> = {}
-      Object.entries(trainedModels).forEach(([m, model]) => {
-        try { newPredictions[m] = model.predict(next) } catch {}
+  const handleParameterChange = useCallback(
+    (key: keyof EDMParameters, value: number) => {
+      setParameters((prev) => {
+        const next = { ...prev, [key]: value }
+        const newPredictions: Record<string, any> = {}
+        Object.entries(trainedModels).forEach(([m, model]) => {
+          try {
+            newPredictions[m] = model.predict(next)
+          } catch {}
+        })
+        setPredictions(newPredictions)
+        return next
       })
-      setPredictions(newPredictions)
-      return next
-    })
-  }, [trainedModels])
+    },
+    [trainedModels],
+  )
 
   const handleToggleSimulation = () => {
-    setIsSimulationRunning(prev => !prev);
-  };
+    setIsSimulationRunning((prev) => !prev)
+  }
 
   const handleStopSimulation = () => {
-    setIsSimulationRunning(false);
-  };
+    setIsSimulationRunning(false)
+  }
 
   const handleTrainModel = async (modelType: string, data: any) => {
-    let model: ModelResult | undefined;
-    const { useRealData = true, uploadedData = null } = data || {};
+    let model: ModelResult | undefined
+    const { useRealData = true, uploadedData = null } = data || {}
 
     switch (modelType) {
-      case 'SVM':
-        model = await trainSVM(useRealData, uploadedData);
-        break;
-      case 'ANN':
-        model = await trainANN(useRealData, undefined, uploadedData);
-        break;
-      case 'ELM':
-        model = await trainELM(useRealData, uploadedData);
-        break;
-      case 'GA':
-        model = await trainGA(useRealData, uploadedData);
-        break;
+      case "SVM":
+        model = await trainSVM(useRealData, uploadedData)
+        break
+      case "ANN":
+        model = await trainANN(useRealData, undefined, uploadedData)
+        break
+      case "ELM":
+        model = await trainELM(useRealData, uploadedData)
+        break
+      case "GA":
+        model = await trainGA(useRealData, uploadedData)
+        break
       default:
-        return;
+        return
     }
 
-    if (!model) return;
+    if (!model) return
 
-    setTrainedModels(prev => ({ ...prev, [modelType]: model }));
+    setTrainedModels((prev) => ({ ...prev, [modelType]: model }))
     const prediction = model.predict(parameters)
-    setPredictions(prev => ({ ...prev, [modelType]: prediction }))
-  };
+    setPredictions((prev) => ({ ...prev, [modelType]: prediction }))
+  }
 
-  // Ported analytics effect
   useEffect(() => {
     if (isSimulationRunning) {
       const interval = setInterval(() => {
-        // Use incremental deterministic pseudo-variation to minimize hydration mismatch risk.
         const count = analyticsData.length + 1
         const progress = (count * 7) % 100
-        const variation = (seed: number, scale: number) => (((count * seed) % 17) - 8) * scale / 8
+        const variation = (seed: number, scale: number) => ((((count * seed) % 17) - 8) * scale) / 8
         const newDataPoint = {
-          timestamp: Date.now(), // runs only client-side (effect)
+          timestamp: Date.now(),
           progress,
           materialRemovalRate: processMetrics.materialRemovalRate + variation(3, 2),
           powerConsumption: processMetrics.powerConsumption + variation(5, 0.5),
           surfaceRoughness: processMetrics.surfaceRoughness + variation(7, 0.2),
           temperature: 150 + 20 + variation(11, 80),
-          efficiency: processMetrics.efficiency + variation(13, 10)
+          efficiency: processMetrics.efficiency + variation(13, 10),
         }
 
-        setAnalyticsData(prev => {
-          const updated = [...prev, newDataPoint];
-          return updated.slice(-50);
-        });
-      }, 1000);
+        setAnalyticsData((prev) => {
+          const updated = [...prev, newDataPoint]
+          return updated.slice(-50)
+        })
+      }, 1000)
 
-      return () => clearInterval(interval);
+      return () => clearInterval(interval)
     }
-  }, [isSimulationRunning, processMetrics, analyticsData.length]);
+  }, [isSimulationRunning, processMetrics, analyticsData.length])
 
   return (
     <div className="min-h-screen bg-background text-foreground dark">
@@ -169,7 +172,6 @@ export default function Home() {
               onCuttingMethodChange={setSelectedCuttingMethod}
               parameters={parameters}
               setParameters={setParameters}
-              // ported handler and metrics
               onParameterChange={handleParameterChange}
               processMetrics={processMetrics}
               selectedMaterial={selectedMaterial}
@@ -183,7 +185,6 @@ export default function Home() {
               parameters={parameters}
               setParameters={setParameters}
               material={selectedMaterial}
-              // simulation state/handlers
               isRunning={isSimulationRunning}
               onToggleSimulation={handleToggleSimulation}
               onStopSimulation={handleStopSimulation}

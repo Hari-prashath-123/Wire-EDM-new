@@ -1,45 +1,64 @@
-  // Ensure onSaveIteration is available in this scope
 "use client"
 
-import { useMemo, useState } from "react"
+import type React from "react"
+import { useState } from "react"
 import { Play, Square, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import dynamic from "next/dynamic"
-const Slider = dynamic(() => import("@/components/ui/slider").then(m => m.Slider), { ssr: false })
+import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
 import PathBasedShapeInput from "@/components/simulation/path-based-shape-input"
 import MillingShapeInput from "@/components/simulation/milling-shape-input"
-import Scene from "./scene"
-import type { ShapeData } from './types'
+import { SceneWrapper } from "./scene-wrapper"
+import type { ShapeData } from "./types"
 import type { EDMParameters } from "@/components/simulation/types"
 import { ShapeLibraryPanel } from "@/components/simulation/ShapeLibraryPanel"
 import ModelComparison from "@/components/ai-models/model-comparison"
 import EnsemblePrediction from "@/components/results/ensemble-prediction"
 
 interface CuttingSimulationProps {
-  cuttingMethod?: string;
-  parameters: EDMParameters;
-  setParameters: React.Dispatch<React.SetStateAction<EDMParameters>> | ((params: EDMParameters | ((prev: EDMParameters) => EDMParameters)) => void);
-  material: string;
-  materialThickness?: number;
-  isRunning?: boolean;
-  onToggleSimulation?: () => void;
-  onStopSimulation?: () => void;
-  cuttingSpeed?: number;
-  onCuttingSpeedChange?: (value: number) => void;
-  onSaveIteration?: (iterationData: { parameters: EDMParameters; material: string; shapeName: string; cutoutPoints: { x: number; y: number }[]; points: { x: number; y: number }[] }) => void;
+  cuttingMethod?: string
+  parameters: EDMParameters
+  setParameters:
+    | React.Dispatch<React.SetStateAction<EDMParameters>>
+    | ((params: EDMParameters | ((prev: EDMParameters) => EDMParameters)) => void)
+  material: string
+  materialThickness?: number
+  isRunning?: boolean
+  onToggleSimulation?: () => void
+  onStopSimulation?: () => void
+  cuttingSpeed?: number
+  onCuttingSpeedChange?: (value: number) => void
+  onSaveIteration?: (iterationData: {
+    parameters: EDMParameters
+    material: string
+    shapeName: string
+    cutoutPoints: { x: number; y: number }[]
+    points: { x: number; y: number }[]
+  }) => void
 }
 
-export function CuttingSimulation({ cuttingMethod = "wire-edm", parameters, setParameters, material, materialThickness = 10, isRunning, onToggleSimulation, onStopSimulation, cuttingSpeed, onCuttingSpeedChange, onSaveIteration }: CuttingSimulationProps) {
+export function CuttingSimulation({
+  cuttingMethod = "wire-edm",
+  parameters,
+  setParameters,
+  material,
+  materialThickness = 10,
+  isRunning,
+  onToggleSimulation,
+  onStopSimulation,
+  cuttingSpeed,
+  onCuttingSpeedChange,
+  onSaveIteration,
+}: CuttingSimulationProps) {
   // Helper to extract shape info
   const getShapeInfo = (shape: ShapeData | null) => {
-    if (!shape) return { name: '', points: [] };
-    if ('points' in shape && Array.isArray(shape.points)) {
-      return { name: 'name' in shape && typeof shape.name === 'string' ? shape.name : '', points: shape.points };
+    if (!shape) return { name: "", points: [] }
+    if ("points" in shape && Array.isArray(shape.points)) {
+      return { name: "name" in shape && typeof shape.name === "string" ? shape.name : "", points: shape.points }
     }
-    return { name: '', points: [] };
-  };
+    return { name: "", points: [] }
+  }
   const [localIsRunning, setLocalIsRunning] = useState(false)
   const [shapeData, setShapeData] = useState<ShapeData | null>(null)
   const [selectedShapeId, setSelectedShapeId] = useState<string | undefined>(undefined)
@@ -71,7 +90,7 @@ export function CuttingSimulation({ cuttingMethod = "wire-edm", parameters, setP
   }
 
   const handlePresetShape = (shape: { type: string; name: string; points: any[] }) => {
-    setShapeData({ type: 'preset', name: shape.name, points: shape.points })
+    setShapeData({ type: "preset", name: shape.name, points: shape.points })
     // Stop any running simulation when shape changes
     if (running) {
       if (onStopSimulation) onStopSimulation()
@@ -80,13 +99,13 @@ export function CuttingSimulation({ cuttingMethod = "wire-edm", parameters, setP
   }
 
   const getShapeName = (shape: ShapeData | null): string => {
-    if (!shape) return "No Shape";
-    if (shape.type === 'preset') return shape.name;
-    if (shape.type === 'drawn') return `Drawn (${shape.points.length} pts)`;
-    if (shape.type === 'file') return shape.name || "Uploaded File";
-    if (shape.type === 'coordinates') return `Path (${shape.points.length} pts)`;
-    return "Custom Shape";
-  };
+    if (!shape) return "No Shape"
+    if (shape.type === "preset") return shape.name
+    if (shape.type === "drawn") return `Drawn (${shape.points.length} pts)`
+    if (shape.type === "file") return shape.name || "Uploaded File"
+    if (shape.type === "coordinates") return `Path (${shape.points.length} pts)`
+    return "Custom Shape"
+  }
 
   const renderShapeInput = () => {
     switch (cuttingMethod) {
@@ -135,27 +154,27 @@ export function CuttingSimulation({ cuttingMethod = "wire-edm", parameters, setP
               className="bg-black rounded-lg border border-border"
               style={{ width: "800px", height: "400px", maxWidth: "100%" }}
             >
-                <Scene
-                  shapeData={shapeData}
-                  isRunning={running}
-                  cuttingSpeed={(cuttingSpeed ?? parameters.wireSpeed ?? 0)}
-                  cuttingMethod={cuttingMethod}
-                  parameters={parameters}
-                  material={material}
-                  materialThickness={materialThickness}
-                  onLoop={() => {
-                    if (onSaveIteration) {
-                      const shapeInfo = getShapeInfo(shapeData);
-                      onSaveIteration({
-                        parameters,
-                        material,
-                        shapeName: shapeInfo.name,
-                        cutoutPoints: shapeInfo.points,
-                        points: shapeInfo.points,
-                      });
-                    }
-                  }}
-                />
+              <SceneWrapper
+                shapeData={shapeData}
+                isRunning={running}
+                cuttingSpeed={cuttingSpeed ?? parameters.wireSpeed ?? 0}
+                cuttingMethod={cuttingMethod}
+                parameters={parameters}
+                material={material}
+                materialThickness={materialThickness}
+                onLoop={() => {
+                  if (onSaveIteration) {
+                    const shapeInfo = getShapeInfo(shapeData)
+                    onSaveIteration({
+                      parameters,
+                      material,
+                      shapeName: shapeInfo.name,
+                      cutoutPoints: shapeInfo.points,
+                      points: shapeInfo.points,
+                    })
+                  }
+                }}
+              />
             </div>
           </div>
           {/* Control Buttons */}
@@ -185,13 +204,16 @@ export function CuttingSimulation({ cuttingMethod = "wire-edm", parameters, setP
           <div className="mb-8 max-w-xs" suppressHydrationWarning>
             <div className="flex justify-between items-center mb-3">
               <Label className="text-base font-semibold">Cutting Speed Control</Label>
-              <span className="text-sm font-medium text-accent">{(cuttingSpeed ?? parameters.wireSpeed)} mm/min</span>
+              <span className="text-sm font-medium text-accent">{cuttingSpeed ?? parameters.wireSpeed} mm/min</span>
             </div>
             <Slider
               value={[cuttingSpeed ?? parameters.wireSpeed ?? 0]}
               onValueChange={(value) => {
                 if (onCuttingSpeedChange) onCuttingSpeedChange(value[0])
-                ;(setParameters as React.Dispatch<React.SetStateAction<EDMParameters>>)((prev) => ({ ...prev, wireSpeed: value[0] }))
+                ;(setParameters as React.Dispatch<React.SetStateAction<EDMParameters>>)((prev) => ({
+                  ...prev,
+                  wireSpeed: value[0],
+                }))
               }}
               min={50}
               max={400}

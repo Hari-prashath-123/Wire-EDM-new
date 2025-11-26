@@ -3,46 +3,82 @@
 function getMaterialColor(materialName: string): string {
   switch (materialName?.toLowerCase()) {
     case "aluminum":
-      return "#B0B0B0"; // Light gray
+      return "#B0B0B0" // Light gray
     case "steel":
-      return "#7A7A7A"; // Darker gray
+      return "#7A7A7A" // Darker gray
     case "copper":
-      return "#B87333"; // Coppery brown
+      return "#B87333" // Coppery brown
     case "titanium":
-      return "#878681"; // Grayish
+      return "#878681" // Grayish
     case "d2 tool steel":
-      return "#64748b"; // Default slate gray
+      return "#64748b" // Default slate gray
     default:
-      return "#64748b"; // Default slate gray
+      return "#64748b" // Default slate gray
   }
 }
 
 function getMethodVisuals(cuttingMethod: string) {
   switch (cuttingMethod) {
-    case "wire-edm": return { toolColor: '#fbbf24', sparkColor: '#ef4444', toolWidth: 0.1, showSparks: true, showFluid: true, fluidColor: '#3b82f6' };
-    case "water-jet": return { toolColor: '#06b6d4', sparkColor: '#ffffff', toolWidth: 0.2, showSparks: true, showFluid: true, fluidColor: '#06b6d4' };
-    case "laser-cutting": return { toolColor: '#dc2626', sparkColor: '#fbbf24', toolWidth: 0.15, showSparks: true, showFluid: false, fluidColor: 'red' };
-    case "cnc-milling": return { toolColor: '#94a3b8', sparkColor: '#f59e0b', toolWidth: 4, showSparks: true, showFluid: false, fluidColor: 'gray' };
-    default: return { toolColor: '#fbbf24', sparkColor: '#ef4444', toolWidth: 0.1, showSparks: true, showFluid: true, fluidColor: '#3b82f6' };
+    case "wire-edm":
+      return {
+        toolColor: "#fbbf24",
+        sparkColor: "#ef4444",
+        toolWidth: 0.1,
+        showSparks: true,
+        showFluid: true,
+        fluidColor: "#3b82f6",
+      }
+    case "water-jet":
+      return {
+        toolColor: "#06b6d4",
+        sparkColor: "#ffffff",
+        toolWidth: 0.2,
+        showSparks: true,
+        showFluid: true,
+        fluidColor: "#06b6d4",
+      }
+    case "laser-cutting":
+      return {
+        toolColor: "#dc2626",
+        sparkColor: "#fbbf24",
+        toolWidth: 0.15,
+        showSparks: true,
+        showFluid: false,
+        fluidColor: "red",
+      }
+    case "cnc-milling":
+      return {
+        toolColor: "#94a3b8",
+        sparkColor: "#f59e0b",
+        toolWidth: 4,
+        showSparks: true,
+        showFluid: false,
+        fluidColor: "gray",
+      }
+    default:
+      return {
+        toolColor: "#fbbf24",
+        sparkColor: "#ef4444",
+        toolWidth: 0.1,
+        showSparks: true,
+        showFluid: true,
+        fluidColor: "#3b82f6",
+      }
   }
 }
 
-import React, { useRef, useMemo, useEffect, useState } from "react"
+import { useRef, useMemo, useEffect, useState } from "react"
 import CutoutShape from "./CutoutShape"
-import { extend } from '@react-three/fiber';
-import { PointsMaterial } from 'three';
-extend({ PointsMaterial });
 import { Canvas, useFrame } from "@react-three/fiber"
-import { OrbitControls, Line, Cylinder, Box as DreiBox } from "@react-three/drei"
+import { OrbitControls, Cylinder, Box as DreiBox } from "@react-three/drei"
 import * as THREE from "three"
 
 // Types
-
-import type { ShapeData, Point2D } from './types'
+import type { ShapeData, Point2D } from "./types"
 import type { EDMParameters } from "@/components/simulation/types"
 
 export interface CuttingSceneProps extends SceneProps {
-  showCutout?: boolean;
+  showCutout?: boolean
 }
 
 interface SceneProps {
@@ -56,133 +92,221 @@ interface SceneProps {
   materialThickness?: number
 }
 
-function CuttingPath({ points, materialThickness = 10 }: { points: Point2D[], materialThickness?: number }) {
+function CuttingPath({ points, materialThickness = 10 }: { points: Point2D[]; materialThickness?: number }) {
   const pathPoints = useMemo(() => {
-    // Points come in world space matching workpiece X/Y. Place them on the top surface z=...
-    return points.map(p => new THREE.Vector3(p.x, p.y, materialThickness / 2));
-  }, [points, materialThickness]);
+    if (!points || points.length < 2) {
+      console.log("[v0] CuttingPath: Invalid points", points)
+      return []
+    }
 
-  if (pathPoints.length < 2) return null;
+    const validPoints = points
+      .filter((p) => p && typeof p.x === "number" && typeof p.y === "number" && !isNaN(p.x) && !isNaN(p.y))
+      .map((p) => new THREE.Vector3(p.x, p.y, materialThickness / 2))
+
+    if (validPoints.length < 2) {
+      console.log("[v0] CuttingPath: Not enough valid points after filtering")
+      return []
+    }
+
+    console.log("[v0] CuttingPath: Generated", validPoints.length, "valid points")
+
+    const allFinite = validPoints.every((p) => isFinite(p.x) && isFinite(p.y) && isFinite(p.z))
+    if (!allFinite) {
+      console.log("[v0] CuttingPath: Some points have non-finite values")
+      return []
+    }
+
+    return validPoints
+  }, [points, materialThickness])
+
+  const lineGeometry = useMemo(() => {
+    try {
+      const geometry = new THREE.BufferGeometry()
+      if (pathPoints.length === 0) return null
+      const positions = new Float32Array(pathPoints.length * 3 + 3)
+      pathPoints.forEach((point, i) => {
+        positions[i * 3] = point.x
+        positions[i * 3 + 1] = point.y
+        positions[i * 3 + 2] = point.z
+      })
+      positions[pathPoints.length * 3] = pathPoints[0].x
+      positions[pathPoints.length * 3 + 1] = pathPoints[0].y
+      positions[pathPoints.length * 3 + 2] = pathPoints[0].z
+
+      geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3))
+      return geometry
+    } catch (error) {
+      console.error("[v0] CuttingPath: Error creating geometry:", error)
+      return null
+    }
+  }, [pathPoints])
+
+  if (pathPoints.length < 2 || !lineGeometry) {
+    return null
+  }
+
+  console.log("[v0] CuttingPath: Rendering line with", pathPoints.length, "points")
 
   return (
-    <Line
-      points={pathPoints}
-      color="#f43f5e"
-      lineWidth={2}
-      dashed
-      dashScale={5}
-      gapSize={2}
-      dashSize={3}
-    />
-  );
+    <group>
+      <lineSegments args={[lineGeometry]}>
+        <lineBasicMaterial color="#ff0080" linewidth={3} />
+      </lineSegments>
+    </group>
+  )
 }
 
-function CuttingTool({ points, isRunning, cuttingSpeed, cuttingMethod, parameters, material, onToolMove, onLoop, materialThickness = 10 }: { points: Point2D[]; isRunning: boolean; cuttingSpeed: number; cuttingMethod: string; parameters: EDMParameters; material: string; onToolMove?: (position: THREE.Vector3) => void; onLoop?: () => void; materialThickness?: number }) {
-  const toolRef = useRef<THREE.Group>(null!);
-  const [progress, setProgress] = useState(0);
-  const [finished, setFinished] = useState(false);
-  const visuals = useMemo(() => getMethodVisuals(cuttingMethod), [cuttingMethod]);
+function CuttingTool({
+  points,
+  isRunning,
+  cuttingSpeed,
+  cuttingMethod,
+  parameters,
+  material,
+  onToolMove,
+  onLoop,
+  materialThickness = 10,
+}: {
+  points: Point2D[]
+  isRunning: boolean
+  cuttingSpeed: number
+  cuttingMethod: string
+  parameters: EDMParameters
+  material: string
+  onToolMove?: (position: THREE.Vector3) => void
+  onLoop?: () => void
+  materialThickness?: number
+}) {
+  const toolRef = useRef<THREE.Group>(null!)
+  const [progress, setProgress] = useState(0)
+  const [finished, setFinished] = useState(false)
+  const visuals = useMemo(() => getMethodVisuals(cuttingMethod), [cuttingMethod])
 
-  const pathVectors = useMemo(() => points.map(p => new THREE.Vector3(p.x, p.y, materialThickness / 2)), [points, materialThickness]);
+  const pathVectors = useMemo(() => {
+    if (!points || points.length < 2) return []
+    return points
+      .filter((p) => p && typeof p.x === "number" && typeof p.y === "number" && !isNaN(p.x) && !isNaN(p.y))
+      .map((p) => new THREE.Vector3(p.x, p.y, materialThickness / 2))
+  }, [points, materialThickness])
 
   const totalPathLength = useMemo(() => {
-    let length = 0;
+    let length = 0
     for (let i = 0; i < pathVectors.length - 1; i++) {
-      length += pathVectors[i].distanceTo(pathVectors[i + 1]);
+      length += pathVectors[i].distanceTo(pathVectors[i + 1])
     }
-    return length;
-  }, [pathVectors]);
+    return length
+  }, [pathVectors])
 
   // Reset progress when points change (new shape selected)
   useEffect(() => {
-    setProgress(0);
-    setFinished(false);
-  }, [points]);
+    setProgress(0)
+    setFinished(false)
+  }, [points])
 
   useFrame((_, delta) => {
     if (!isRunning || pathVectors.length < 2 || totalPathLength === 0) {
-      if (progress !== 0 && !isRunning) setProgress(0);
-      if (finished) setFinished(false);
+      if (progress !== 0 && !isRunning) setProgress(0)
+      if (finished) setFinished(false)
       // Reset position when not running
       if (toolRef.current) {
-        const initialPos = pathVectors.length > 0 ? pathVectors[0] : new THREE.Vector3(0, 0, 15);
-        toolRef.current.position.set(initialPos.x, initialPos.y, initialPos.z);
-        if (onToolMove) onToolMove(initialPos);
+        const initialPos = pathVectors.length > 0 ? pathVectors[0] : new THREE.Vector3(0, 0, 15)
+        toolRef.current.position.set(initialPos.x, initialPos.y, initialPos.z)
+        if (onToolMove) onToolMove(initialPos)
       }
-      return;
+      return
     }
 
-    if (finished) return;
+    if (finished) return
 
     // Use total path length to make speed consistent
-    let newProgress = progress + (delta * (cuttingSpeed / 100) * 2); // Adjusted speed factor
+    const newProgress = progress + delta * (cuttingSpeed / 100) * 2 // Adjusted speed factor
     if (newProgress >= totalPathLength) {
-      setProgress(totalPathLength);
-      setFinished(true);
-      if (typeof onLoop === 'function') {
-        onLoop();
+      setProgress(totalPathLength)
+      setFinished(true)
+      if (typeof onLoop === "function") {
+        onLoop()
       }
-      return;
+      return
     }
-    setProgress(newProgress);
+    setProgress(newProgress)
 
-    const targetLength = newProgress;
-    let currentLength = 0;
+    const targetLength = newProgress
+    let currentLength = 0
     for (let i = 0; i < pathVectors.length - 1; i++) {
-      const segmentStart = pathVectors[i];
-      const segmentEnd = pathVectors[i + 1];
-      const segmentLength = segmentStart.distanceTo(segmentEnd);
+      const segmentStart = pathVectors[i]
+      const segmentEnd = pathVectors[i + 1]
+      const segmentLength = segmentStart.distanceTo(segmentEnd)
       if (currentLength + segmentLength >= targetLength) {
-        const segmentProgress = (targetLength - currentLength) / segmentLength;
-        const newPosition = new THREE.Vector3().lerpVectors(segmentStart, segmentEnd, segmentProgress);
-        toolRef.current.position.set(newPosition.x, newPosition.y, newPosition.z);
-        if (onToolMove) onToolMove(newPosition);
-        if (cuttingMethod === 'cnc-milling' && toolRef.current.children[0]) {
-          toolRef.current.children[0].rotation.z += 0.5; // Spin the tool
+        const segmentProgress = (targetLength - currentLength) / segmentLength
+        const newPosition = new THREE.Vector3().lerpVectors(segmentStart, segmentEnd, segmentProgress)
+        toolRef.current.position.set(newPosition.x, newPosition.y, newPosition.z)
+        if (onToolMove) onToolMove(newPosition)
+        if (cuttingMethod === "cnc-milling" && toolRef.current.children[0]) {
+          toolRef.current.children[0].rotation.z += 0.5 // Spin the tool
         }
-        return;
+        return
       }
-      currentLength += segmentLength;
+      currentLength += segmentLength
     }
-  });
+  })
 
-  if (finished) return null;
+  if (finished) return null
   return (
     <group ref={toolRef}>
       {/* Render the tool: visually distinct for each method */}
       <mesh position={[0, 0, 0]}>
         {/* Wire EDM: glowing wire, animated sparks, swirling fluid */}
-        {cuttingMethod === 'wire-edm' && (
+        {cuttingMethod === "wire-edm" && (
           <>
-            <Cylinder args={[visuals.toolWidth, visuals.toolWidth, 12, 32]} position={[0, 0, 6]} rotation={[Math.PI / 2, 0, 0]}>
+            <Cylinder
+              args={[visuals.toolWidth, visuals.toolWidth, 12, 32]}
+              position={[0, 0, 6]}
+              rotation={[Math.PI / 2, 0, 0]}
+            >
               <meshStandardMaterial color={visuals.toolColor} emissive={visuals.toolColor} emissiveIntensity={1.5} />
             </Cylinder>
             {/* Swirling fluid */}
             {isRunning && (
-              <Cylinder args={[visuals.toolWidth * 2, visuals.toolWidth * 2, 0.3]} position={[0, 0, 0.2]} rotation={[Math.PI / 2, 0, 0]}>
+              <Cylinder
+                args={[visuals.toolWidth * 2, visuals.toolWidth * 2, 0.3]}
+                position={[0, 0, 0.2]}
+                rotation={[Math.PI / 2, 0, 0]}
+              >
                 <meshStandardMaterial color={visuals.fluidColor} transparent opacity={0.4} />
               </Cylinder>
             )}
           </>
         )}
         {/* Water Jet: animated water spray, splash effect */}
-        {cuttingMethod === 'water-jet' && (
+        {cuttingMethod === "water-jet" && (
           <>
-            <Cylinder args={[visuals.toolWidth, visuals.toolWidth, 10, 32]} position={[0, 0, 5]} rotation={[Math.PI / 2, 0, 0]}>
+            <Cylinder
+              args={[visuals.toolWidth, visuals.toolWidth, 10, 32]}
+              position={[0, 0, 5]}
+              rotation={[Math.PI / 2, 0, 0]}
+            >
               <meshStandardMaterial color={visuals.toolColor} />
             </Cylinder>
             {/* Water spray effect */}
             {isRunning && (
-              <Cylinder args={[visuals.toolWidth * 2.5, visuals.toolWidth * 2.5, 0.4]} position={[0, 0, 0.2]} rotation={[Math.PI / 2, 0, 0]}>
+              <Cylinder
+                args={[visuals.toolWidth * 2.5, visuals.toolWidth * 2.5, 0.4]}
+                position={[0, 0, 0.2]}
+                rotation={[Math.PI / 2, 0, 0]}
+              >
                 <meshStandardMaterial color={visuals.fluidColor} transparent opacity={0.5} />
               </Cylinder>
             )}
           </>
         )}
         {/* Laser Cutting: animated laser beam, glow, heat distortion */}
-        {cuttingMethod === 'laser-cutting' && (
+        {cuttingMethod === "laser-cutting" && (
           <>
-            <Cylinder args={[visuals.toolWidth, visuals.toolWidth, 12, 16]} position={[0, 0, 6]} rotation={[Math.PI / 2, 0, 0]}>
+            <Cylinder
+              args={[visuals.toolWidth, visuals.toolWidth, 12, 16]}
+              position={[0, 0, 6]}
+              rotation={[Math.PI / 2, 0, 0]}
+            >
               <meshStandardMaterial color={visuals.toolColor} emissive={visuals.toolColor} emissiveIntensity={2} />
             </Cylinder>
             {/* Laser beam effect */}
@@ -195,14 +319,22 @@ function CuttingTool({ points, isRunning, cuttingSpeed, cuttingMethod, parameter
           </>
         )}
         {/* CNC Milling: rotating tool, chip particles */}
-        {cuttingMethod === 'cnc-milling' && (
+        {cuttingMethod === "cnc-milling" && (
           <>
-            <Cylinder args={[visuals.toolWidth, visuals.toolWidth, 10, 32]} position={[0, 0, 5]} rotation={[Math.PI / 2, 0, 0]}>
+            <Cylinder
+              args={[visuals.toolWidth, visuals.toolWidth, 10, 32]}
+              position={[0, 0, 5]}
+              rotation={[Math.PI / 2, 0, 0]}
+            >
               <meshStandardMaterial color={visuals.toolColor} />
             </Cylinder>
             {/* Toolpath highlight (subtle) */}
             {isRunning && (
-              <Cylinder args={[visuals.toolWidth * 1.2, visuals.toolWidth * 1.2, 0.2]} position={[0, 0, 0.1]} rotation={[Math.PI / 2, 0, 0]}>
+              <Cylinder
+                args={[visuals.toolWidth * 1.2, visuals.toolWidth * 1.2, 0.2]}
+                position={[0, 0, 0.1]}
+                rotation={[Math.PI / 2, 0, 0]}
+              >
                 <meshStandardMaterial color="#f59e0b" transparent opacity={0.2} />
               </Cylinder>
             )}
@@ -210,144 +342,217 @@ function CuttingTool({ points, isRunning, cuttingSpeed, cuttingMethod, parameter
         )}
       </mesh>
     </group>
-  );
+  )
 }
 
-function SparkParticles({ position, color, show, materialThickness = 10 }: { position: THREE.Vector3, color: string, show: boolean, materialThickness?: number }) {
-  const pointsRef = useRef<THREE.Points>(null!);
-  const workpieceSurfaceZ = materialThickness / 2;
-  const particlePool = useMemo(() => new Array(800).fill(0).map(() => ({
-    position: new THREE.Vector3(1000, 1000, 1000),
-    velocity: new THREE.Vector3(),
-    life: 0,
-    maxLife: 60,
-  })), []);
-  const positions = useMemo(() => new Float32Array(800 * 3), []);
-  const sizes = useMemo(() => new Float32Array(800), []);
-  let particleIndex = 0;
+function SparkParticles({
+  position,
+  color,
+  show,
+  materialThickness = 10,
+}: { position: THREE.Vector3; color: string; show: boolean; materialThickness?: number }) {
+  const pointsRef = useRef<THREE.Points>(null!)
+  const workpieceSurfaceZ = materialThickness / 2
+  const particlePool = useMemo(
+    () =>
+      new Array(800).fill(0).map(() => ({
+        position: new THREE.Vector3(1000, 1000, 1000),
+        velocity: new THREE.Vector3(),
+        life: 0,
+        maxLife: 60,
+      })),
+    [],
+  )
+
+  const geometryRef = useRef<THREE.BufferGeometry | null>(null)
+  const positionAttributeRef = useRef<THREE.BufferAttribute | null>(null)
+  const sizeAttributeRef = useRef<THREE.BufferAttribute | null>(null)
+
+  const positions = useMemo(() => {
+    const arr = new Float32Array(800 * 3)
+    for (let i = 0; i < 800; i++) {
+      arr[i * 3] = 1000
+      arr[i * 3 + 1] = 1000
+      arr[i * 3 + 2] = 1000
+    }
+    return arr
+  }, [])
+
+  const sizes = useMemo(() => {
+    const arr = new Float32Array(800)
+    arr.fill(0)
+    return arr
+  }, [])
+
+  let particleIndex = 0
+
+  useEffect(() => {
+    if (!pointsRef.current) return
+    try {
+      const geometry = pointsRef.current.geometry
+      if (!geometry) return
+      if (!geometry.attributes.position) {
+        const posAttr = new THREE.BufferAttribute(positions, 3)
+        geometry.setAttribute("position", posAttr)
+        positionAttributeRef.current = posAttr
+      }
+      if (!geometry.attributes.size) {
+        const sizeAttr = new THREE.BufferAttribute(sizes, 1)
+        geometry.setAttribute("size", sizeAttr)
+        sizeAttributeRef.current = sizeAttr
+      }
+    } catch (error) {
+      console.error("[v0] SparkParticles: Error initializing geometry:", error)
+    }
+  }, [positions, sizes])
 
   useFrame(() => {
-    if (!pointsRef.current) return;
+    if (!pointsRef.current) return
+    const geometry = pointsRef.current.geometry
+    if (!geometry) return
+
+    const posAttr = positionAttributeRef.current || (geometry.attributes.position as THREE.BufferAttribute)
+    const sizeAttr = sizeAttributeRef.current || (geometry.attributes.size as THREE.BufferAttribute)
+
+    if (!posAttr || !sizeAttr) return
 
     if (!show) {
-      let needsUpdate = false;
+      let needsUpdate = false
       for (let i = 0; i < particlePool.length; i++) {
         if (particlePool[i].life > 0) {
-          particlePool[i].life = 0;
-          positions[i * 3] = 1000;
-          positions[i * 3 + 1] = 1000;
-          positions[i * 3 + 2] = 1000;
-          sizes[i] = 0;
-          needsUpdate = true;
+          particlePool[i].life = 0
+          positions[i * 3] = 1000
+          positions[i * 3 + 1] = 1000
+          positions[i * 3 + 2] = 1000
+          sizes[i] = 0
+          needsUpdate = true
         }
       }
       if (needsUpdate) {
-        pointsRef.current.geometry.attributes.position.needsUpdate = true;
-        pointsRef.current.geometry.attributes.size.needsUpdate = true;
+        posAttr.needsUpdate = true
+        sizeAttr.needsUpdate = true
       }
-      return;
+      return
     }
-    if (!position) return;
+    if (!position) return
     for (let i = 0; i < particlePool.length; i++) {
-      const particle = particlePool[i];
+      const particle = particlePool[i]
       if (particle.life > 0) {
-        particle.position.add(particle.velocity);
-        particle.velocity.z -= 0.004;
-        particle.velocity.multiplyScalar(0.97);
-        particle.life -= 1;
-        sizes[i] = Math.max(0, (particle.life / particle.maxLife) * 0.2);
+        particle.position.add(particle.velocity)
+        particle.velocity.z -= 0.004
+        particle.velocity.multiplyScalar(0.97)
+        particle.life -= 1
+        sizes[i] = Math.max(0, (particle.life / particle.maxLife) * 0.2)
         if (particle.position.z < workpieceSurfaceZ) {
-          particle.position.z = workpieceSurfaceZ;
-          particle.velocity.z *= -0.3;
-          particle.velocity.x *= 0.5;
-          particle.velocity.y *= 0.5;
+          particle.position.z = workpieceSurfaceZ
+          particle.velocity.z *= -0.3
+          particle.velocity.x *= 0.5
+          particle.velocity.y *= 0.5
         }
-        positions[i * 3] = particle.position.x;
-        positions[i * 3 + 1] = particle.position.y;
-        positions[i * 3 + 2] = particle.position.z;
+        positions[i * 3] = particle.position.x
+        positions[i * 3 + 1] = particle.position.y
+        positions[i * 3 + 2] = particle.position.z
       } else {
-        sizes[i] = 0;
+        sizes[i] = 0
       }
     }
     if (Math.random() > 0.3) {
-      const particle = particlePool[particleIndex];
-      particle.position.copy(position);
-      const spread = 0.5;
+      const particle = particlePool[particleIndex]
+      particle.position.copy(position)
+      const spread = 0.5
       particle.velocity.set(
         (Math.random() - 0.5) * spread,
         (Math.random() - 0.5) * spread,
-        (Math.random() * 0.8) * spread
-      );
-      particle.life = particle.maxLife;
-      particleIndex = (particleIndex + 1) % particlePool.length;
+        Math.random() * 0.8 * spread,
+      )
+      particle.life = particle.maxLife
+      particleIndex = (particleIndex + 1) % particlePool.length
     }
-    pointsRef.current.geometry.attributes.position.needsUpdate = true;
-    pointsRef.current.geometry.attributes.size.needsUpdate = true;
-  });
+    posAttr.needsUpdate = true
+    sizeAttr.needsUpdate = true
+  })
 
   return (
     <points ref={pointsRef}>
-      <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          args={[positions, 3]}
-        />
-        <bufferAttribute
-          attach="attributes-size"
-          args={[sizes, 1]}
-        />
-      </bufferGeometry>
-      <pointsMaterial
-        attach="material"
-        color={color}
-        size={1}
-        sizeAttenuation
-        transparent
-        opacity={0.9}
-        depthWrite={false}
-        vertexColors={false}
-      />
+      <bufferGeometry ref={geometryRef} />
+      <pointsMaterial color={color} size={1} sizeAttenuation transparent opacity={0.9} depthWrite={false} />
     </points>
-  );
+  )
 }
 
-export default function CuttingScene({ shapeData = null, isRunning, cuttingSpeed, cuttingMethod, parameters, material, onLoop, showCutout = false, materialThickness = 10 }: CuttingSceneProps) {
+export default function CuttingScene({
+  shapeData = null,
+  isRunning,
+  cuttingSpeed,
+  cuttingMethod,
+  parameters,
+  material,
+  onLoop,
+  showCutout = false,
+  materialThickness = 10,
+}: CuttingSceneProps) {
   const points = useMemo(() => {
-    const scale = 10;
-    const defaultPoints = [
-      { x: -40, y: -30 }, { x: 40, y: -30 }, { x: 40, y: 30 }, { x: -40, y: 30 }, { x: -40, y: -30 },
-    ].map(p => ({ x: p.x / scale, y: p.y / scale }));
+    console.log("[v0] CuttingScene: Processing shapeData:", shapeData)
 
-    if (shapeData && 'type' in shapeData) {
-      if ((shapeData.type === 'drawn' || shapeData.type === 'coordinates' || shapeData.type === 'preset') && Array.isArray((shapeData as any).points) && (shapeData as any).points.length > 1) {
-        if (shapeData.type === 'drawn') {
-          return (shapeData as any).points;
-        }
-        if (shapeData.type === 'coordinates' || shapeData.type === 'preset') {
-          return (shapeData as any).points.map((p: any) => ({ x: p.x / scale, y: p.y / scale }));
+    const defaultPoints = [
+      { x: -4, y: -3 },
+      { x: 4, y: -3 },
+      { x: 4, y: 3 },
+      { x: -4, y: 3 },
+      { x: -4, y: -3 },
+    ]
+
+    if (!shapeData) {
+      console.log("[v0] CuttingScene: Using default rectangle")
+      return defaultPoints
+    }
+
+    // Handle different shape data types
+    if (shapeData && "type" in shapeData && "points" in shapeData) {
+      const shapePoints = (shapeData as any).points
+
+      if (Array.isArray(shapePoints) && shapePoints.length > 1) {
+        // Validate all points before returning
+        const validPoints = shapePoints.filter(
+          (p: any) => p && typeof p.x === "number" && typeof p.y === "number" && !isNaN(p.x) && !isNaN(p.y),
+        )
+
+        console.log(
+          "[v0] CuttingScene: Valid points count:",
+          validPoints.length,
+          "from shape type:",
+          (shapeData as any).type,
+        )
+
+        if (validPoints.length > 1) {
+          return validPoints
         }
       }
     }
-    return defaultPoints;
-  }, [shapeData]);
 
-  const [toolPosition, setToolPosition] = useState(new THREE.Vector3(0, 0, 0));
-  const [showCutoutState, setShowCutoutState] = useState(showCutout);
+    console.log("[v0] CuttingScene: Fallback to default rectangle")
+    return defaultPoints
+  }, [shapeData])
+
+  console.log("[v0] CuttingScene: Final points to render:", points.length, "points")
+
+  const [toolPosition, setToolPosition] = useState(new THREE.Vector3(0, 0, 0))
+  const [showCutoutState, setShowCutoutState] = useState(showCutout)
 
   // Reset showCutoutState when simulation starts
   useEffect(() => {
     if (isRunning) {
-      setShowCutoutState(false);
+      setShowCutoutState(false)
     }
-  }, [isRunning]);
+  }, [isRunning])
 
   // Reset cutting state when shape changes
   useEffect(() => {
-    setShowCutoutState(false);
-  }, [shapeData]);
+    setShowCutoutState(false)
+  }, [shapeData])
 
   // 2. ADD THIS useMemo
-  const materialColor = useMemo(() => getMaterialColor(material), [material]);
+  const materialColor = useMemo(() => getMaterialColor(material), [material])
 
   return (
     <div style={{ width: "100%", height: 400 }}>
@@ -376,8 +581,8 @@ export default function CuttingScene({ shapeData = null, isRunning, cuttingSpeed
               material={material}
               onToolMove={setToolPosition}
               onLoop={() => {
-                setShowCutoutState(true);
-                if (onLoop) onLoop();
+                setShowCutoutState(true)
+                if (onLoop) onLoop()
               }}
               materialThickness={materialThickness}
             />
@@ -392,5 +597,5 @@ export default function CuttingScene({ shapeData = null, isRunning, cuttingSpeed
         )}
       </Canvas>
     </div>
-  );
+  )
 }

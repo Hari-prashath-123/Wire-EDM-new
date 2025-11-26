@@ -23,22 +23,25 @@ export default function AIModelsTab({ onTrainModel, trainedModels = {} }: AIMode
     setIsTraining(false)
   }
 
-  // Handler to receive parsed CSV data from AIModelPanel
   const handleUpload = (data: any[]) => {
     setUploadedData(data)
   }
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <AIModelPanel
-        selectedModel={selectedModel.toLowerCase()}
-        onSelectModel={(m) => setSelectedModel(m.toUpperCase())}
-        onTrain={handleTrain}
-        isTraining={isTraining}
-        onUpload={handleUpload}
-        uploadedData={uploadedData}
-      />
-      <ModelComparison /* could be enhanced to consume trainedModels */ />
+      <div>
+        <AIModelPanel
+          selectedModel={selectedModel.toLowerCase()}
+          onSelectModel={(m) => setSelectedModel(m.toUpperCase())}
+          onTrain={handleTrain}
+          isTraining={isTraining}
+          onUpload={handleUpload}
+          uploadedData={uploadedData}
+        />
+      </div>
+      <div>
+        <ModelComparison trainedModels={trainedModels} />
+      </div>
     </div>
   )
 }

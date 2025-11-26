@@ -23,7 +23,7 @@ export default function MaterialSelector({
   const availableMaterials = MATERIALS_BY_METHOD[selectedMethod] || []
 
   return (
-    <Card className="p-6 bg-card border-border">
+    <Card className="p-6 bg-card border-border mt-6">
       <h2 className="text-xl font-semibold mb-4">Material Type</h2>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         {availableMaterials.map((material) => (
@@ -32,7 +32,7 @@ export default function MaterialSelector({
             onClick={() => onSelectMaterial(material)}
             className={`p-3 rounded-lg border transition-all duration-200 text-sm font-medium ${
               selectedMaterial === material
-                ? "border-blue-500 bg-blue-500/10 ring-2 ring-blue-500/50 text-blue-400"
+                ? "border-cyan-500 bg-cyan-500/10 ring-2 ring-cyan-500/50 text-cyan-400"
                 : "border-border hover:border-muted-foreground hover:bg-muted/50 text-foreground"
             }`}
           >

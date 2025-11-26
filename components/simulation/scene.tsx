@@ -1,4 +1,5 @@
 "use client"
 
-// Simple wrapper so callers can import `./scene`
-export { default } from "./cutting-scene"
+import CuttingScene from "./cutting-scene"
+
+export default CuttingScene

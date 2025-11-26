@@ -1,7 +1,7 @@
 "use client"
 
 import { Card } from "@/components/ui/card"
-import { CuttingMethod } from "@/components/simulation/types"
+import type { CuttingMethod } from "@/components/simulation/types"
 
 // Use imported CuttingMethod type for method ids
 
@@ -44,7 +44,7 @@ export default function CuttingMethodSelector({ selectedMethod, onSelectMethod }
             onClick={() => onSelectMethod(method.id)}
             className={`p-4 cursor-pointer transition-all duration-200 ${
               selectedMethod === method.id
-                ? "border-blue-500 bg-blue-500/10 ring-2 ring-blue-500/50"
+                ? "border-cyan-500 bg-cyan-500/10 ring-2 ring-cyan-500/50"
                 : "border-border hover:border-muted-foreground hover:bg-muted/50"
             }`}
           >

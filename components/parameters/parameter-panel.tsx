@@ -2,7 +2,7 @@
 
 // Use a client-only slider to avoid hydration attribute mismatches (data-has-listeners, etc.)
 import dynamic from "next/dynamic"
-const Slider = dynamic(() => import("@/components/ui/slider").then(m => m.Slider), { ssr: false })
+const Slider = dynamic(() => import("@/components/ui/slider").then((m) => m.Slider), { ssr: false })
 import { Card } from "@/components/ui/card"
 import type { EDMParameters } from "@/components/simulation/types"
 
@@ -90,7 +90,7 @@ const SLIDER_CONFIG: Array<{
     min: 1,
     max: 100,
     step: 1,
-  }
+  },
 ]
 
 export default function ParameterPanel({ parameters, onParameterChange }: Props) {
