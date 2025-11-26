@@ -76,8 +76,8 @@
     "@typescript-eslint/eslint-plugin": "^8.46.3",
     "@typescript-eslint/parser": "^8.46.3",
     "eslint": "^9.39.1",
-    "eslint-config-next": "^16.0.1",
-    "postcss": "^8.5",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
     "tailwindcss": "^4.1.9",
     "tw-animate-css": "1.3.3",
     "typescript": "^5"
