@@ -110,6 +110,80 @@ async function loadEDMDataset(uploadedData?: any[]): Promise<any[]> {
   }
 }
 
+// ============================================================================
+// RESEARCH PAPER DATASET HELPERS
+// ============================================================================
+
+export interface PaperDataPoint {
+  ton: number;      // Pulse On Time (µs)
+  toff: number;     // Pulse Off Time (µs)
+  ip: number;       // Peak Current (A)
+  surfaceRoughness: number; // Surface Roughness (µm)
+}
+
+/**
+ * Loads and filters dataset to contain ONLY the 4 variables used in the research paper
+ * Ensures all models (MLR, PCR, RSM, ANN) work with identical data
+ */
+export async function getPaperDataset(uploadedData?: any[]): Promise<PaperDataPoint[]> {
+  const fullData = await loadEDMDataset(uploadedData);
+  
+  return fullData.map(d => ({
+    ton: d.pulseOnTime,
+    toff: d.pulseOffTime,
+    ip: d.current,
+    surfaceRoughness: d.surfaceRoughness
+  }));
+}
+
+/**
+ * Normalization parameters for the 3 inputs and 1 output
+ * Based on expected ranges from EDM process
+ */
+const PAPER_NORMS = {
+  ton: { min: 5, max: 155 },      // Pulse On Time: 5-155 µs
+  toff: { min: 5, max: 205 },     // Pulse Off Time: 5-205 µs
+  ip: { min: 3, max: 43 },        // Peak Current: 3-43 A
+  surfaceRoughness: { min: 0.1, max: 5.0 }  // Surface Roughness: 0.1-5.0 µm
+};
+
+/**
+ * Normalizes research paper inputs to [0, 1] range
+ */
+export function normalizePaperInputs(ton: number, toff: number, ip: number): [number, number, number] {
+  return [
+    (ton - PAPER_NORMS.ton.min) / (PAPER_NORMS.ton.max - PAPER_NORMS.ton.min),
+    (toff - PAPER_NORMS.toff.min) / (PAPER_NORMS.toff.max - PAPER_NORMS.toff.min),
+    (ip - PAPER_NORMS.ip.min) / (PAPER_NORMS.ip.max - PAPER_NORMS.ip.min)
+  ];
+}
+
+/**
+ * Normalizes surface roughness output to [0, 1] range
+ */
+export function normalizePaperOutput(surfaceRoughness: number): number {
+  return (surfaceRoughness - PAPER_NORMS.surfaceRoughness.min) / 
+         (PAPER_NORMS.surfaceRoughness.max - PAPER_NORMS.surfaceRoughness.min);
+}
+
+/**
+ * Denormalizes surface roughness from [0, 1] back to original range
+ */
+export function denormalizePaperOutput(normalized: number): number {
+  const denormalized = normalized * (PAPER_NORMS.surfaceRoughness.max - PAPER_NORMS.surfaceRoughness.min) + 
+                       PAPER_NORMS.surfaceRoughness.min;
+  return Math.max(PAPER_NORMS.surfaceRoughness.min, Math.min(PAPER_NORMS.surfaceRoughness.max, denormalized));
+}
+
+/**
+ * Extracts and normalizes paper inputs from EDMParameters
+ */
+export function extractPaperInputs(params: EDMParameters): [number, number, number] {
+  return normalizePaperInputs(params.pulseOnTime, params.pulseOffTime, params.current);
+}
+
+// ============================================================================
+
 export interface ModelResult {
   accuracy: number;
   trainingTime: number;
@@ -217,63 +291,149 @@ export interface ANNConfig {
 
 export async function trainANN(
   useRealData: boolean = true,
-  config: ANNConfig = { learningRate: 0.01, epochs: 50, hiddenUnits: 12 },
+  config: ANNConfig = { learningRate: 0.01, epochs: 100, hiddenUnits: 10 },
   uploadedData?: any[]
 ): Promise<ModelResult> {
   const startTime = Date.now();
-  const data = useRealData ? await loadEDMDataset(uploadedData) : [];
-  if (data.length === 0) throw new Error("No data loaded for ANN training.");
+  const paperData = await getPaperDataset(uploadedData);
+  if (paperData.length === 0) throw new Error("No data loaded for ANN training.");
 
-  console.log(`Training ANN (TF.js) with ${data.length} samples`);
-  const inputs = data.map(normalizeInputs);
-  const targets = data.map(normalizeOutputs);
+  console.log(`Training ANN (Research Paper Methodology) with ${paperData.length} samples`);
+  console.log(`Architecture: 3-${config.hiddenUnits}-1 (Ton, Toff, Ip -> Surface Roughness)`);
   
-  const xs = tf.tensor2d(inputs);
-  const ys = tf.tensor2d(targets);
+  // Normalize data using shared paper normalization
+  const normalizedData = paperData.map(d => ({
+    input: normalizePaperInputs(d.ton, d.toff, d.ip),
+    output: normalizePaperOutput(d.surfaceRoughness)
+  }));
   
+  // Shuffle array
+  for (let i = normalizedData.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [normalizedData[i], normalizedData[j]] = [normalizedData[j], normalizedData[i]];
+  }
+  
+  // Split data: 30% training, 35% validation, 35% testing
+  const totalSamples = normalizedData.length;
+  const trainSize = Math.floor(totalSamples * 0.30);
+  const valSize = Math.floor(totalSamples * 0.35);
+  const testSize = totalSamples - trainSize - valSize;
+  
+  const trainData = normalizedData.slice(0, trainSize);
+  const valData = normalizedData.slice(trainSize, trainSize + valSize);
+  const testData = normalizedData.slice(trainSize + valSize);
+  
+  console.log(`Data split - Training: ${trainSize} (30%), Validation: ${valSize} (35%), Testing: ${testSize} (35%)`);
+  
+  // Prepare tensors for training
+  const xTrain = tf.tensor2d(trainData.map(d => d.input));
+  const yTrain = tf.tensor2d(trainData.map(d => [d.output]));
+  
+  const xVal = tf.tensor2d(valData.map(d => d.input));
+  const yVal = tf.tensor2d(valData.map(d => [d.output]));
+  
+  const xTest = tf.tensor2d(testData.map(d => d.input));
+  const yTest = tf.tensor2d(testData.map(d => [d.output]));
+  
+  // Build 3-10-1 architecture (research paper specification)
   const model = tf.sequential();
-  model.add(tf.layers.dense({ inputShape: [8], units: config.hiddenUnits, activation: 'relu' })); // 8 inputs
-  model.add(tf.layers.dense({ units: 3, activation: 'linear' })); // 3 outputs
+  model.add(tf.layers.dense({ 
+    inputShape: [3], 
+    units: config.hiddenUnits, 
+    activation: 'relu',
+    kernelInitializer: 'glorotUniform'
+  }));
+  model.add(tf.layers.dense({ 
+    units: 1, 
+    activation: 'linear' 
+  }));
   
-  model.compile({ optimizer: tf.train.adam(config.learningRate), loss: 'meanSquaredError' });
+  model.compile({ 
+    optimizer: tf.train.adam(config.learningRate), 
+    loss: 'meanSquaredError',
+    metrics: ['mse']
+  });
   
-  await model.fit(xs, ys, {
+  console.log('Training ANN with validation data...');
+  
+  // Train with validation data to prevent overfitting
+  await model.fit(xTrain, yTrain, {
     epochs: config.epochs,
     batchSize: 8,
+    validationData: [xVal, yVal],
     verbose: 0,
     callbacks: {
       onEpochEnd: (epoch: number, logs: any) => {
-        if (epoch % 10 === 0) {
-          console.log(`Epoch ${epoch}, Loss: ${logs?.loss}`);
+        if (epoch % 20 === 0) {
+          console.log(`Epoch ${epoch}/${config.epochs} - Loss: ${logs?.loss?.toFixed(4)}, Val Loss: ${logs?.val_loss?.toFixed(4)}`);
         }
       }
     }
   });
   
-  const predsTensor = model.predict(xs) as tf.Tensor;
-  const predsArr = await predsTensor.array() as number[][];
-  let totalError = 0;
-  for (let i = 0; i < predsArr.length; i++) {
-    for (let j = 0; j < 3; j++) { // 3 outputs
-      totalError += Math.pow(predsArr[i][j] - targets[i][j], 2);
-    }
+  console.log('Training complete. Evaluating on test data...');
+  
+  // Evaluate ONLY on test data (35%)
+  const testPredsTensor = model.predict(xTest) as tf.Tensor;
+  const testPredsArr = await testPredsTensor.array() as number[][];
+  const testTargetsArr = await yTest.array() as number[][];
+  
+  // Calculate RMSE on test data
+  let totalSquaredError = 0;
+  for (let i = 0; i < testPredsArr.length; i++) {
+    const error = testPredsArr[i][0] - testTargetsArr[i][0];
+    totalSquaredError += error * error;
   }
-  const rmse = Math.sqrt(totalError / (inputs.length * 3)); // 3 outputs
+  
+  const rmse = Math.sqrt(totalSquaredError / testData.length);
   const accuracy = Math.max(0, 1 - rmse);
   
+  console.log(`Test RMSE: ${rmse.toFixed(4)}, Test Accuracy: ${(accuracy * 100).toFixed(2)}%`);
+  
+  // Prediction function with shared normalization/denormalization
   const predict = (params: EDMParameters) => {
-    const input = mapParamsToInputs(params);
-    const inputTensor = tf.tensor2d([input], [1, 8]); // 8 inputs
+    // Normalize inputs using shared helper
+    const normalizedInput = extractPaperInputs(params);
+    
+    // Predict
+    const inputTensor = tf.tensor2d([normalizedInput], [1, 3]);
     const outputTensor = model.predict(inputTensor) as tf.Tensor;
-    const result = outputTensor.dataSync();
-    return denormalizeOutputs(Array.from(result));
+    const normalizedOutput = outputTensor.dataSync()[0];
+    
+    // Denormalize using shared helper
+    const surfaceRoughness = denormalizePaperOutput(normalizedOutput);
+    
+    // Clean up tensors
+    inputTensor.dispose();
+    outputTensor.dispose();
+    
+    // Return in expected format (with dummy values for other outputs)
+    return {
+      materialRemovalRate: 1.5,  // Dummy value
+      surfaceRoughness,
+      wireWearRate: 0.3  // Dummy value
+    };
   };
+  
+  // Clean up tensors
+  xTrain.dispose();
+  yTrain.dispose();
+  xVal.dispose();
+  yVal.dispose();
+  xTest.dispose();
+  yTest.dispose();
+  testPredsTensor.dispose();
   
   return {
     accuracy,
     trainingTime: Date.now() - startTime,
-    samples: data.length,
+    samples: paperData.length,
     rmse,
+    modelData: { 
+      trainSize,
+      valSize,
+      testSize
+    },
     predict
   };
 }
@@ -418,6 +578,437 @@ export async function trainGA(useRealData: boolean = true, uploadedData?: any[])
     weights: bestChromosome,
     predict
   };
+}
+
+// Multiple Linear Regression (MLR) focusing on 3 paper inputs -> Surface Roughness
+export async function trainMLR(useRealData: boolean = true, uploadedData?: any[]): Promise<ModelResult> {
+  const startTime = Date.now();
+  const paperData = await getPaperDataset(uploadedData);
+  if (paperData.length === 0) throw new Error("No data loaded for MLR training.");
+
+  console.log(`Training MLR with ${paperData.length} samples (3 inputs -> Surface Roughness)`);
+  
+  // Extract features and targets using shared normalization
+  const features = paperData.map(d => Array.from(normalizePaperInputs(d.ton, d.toff, d.ip)));
+  const targets = paperData.map(d => normalizePaperOutput(d.surfaceRoughness));
+  
+  // Solve for weights using least squares: y = w0 + w1*Ton + w2*Toff + w3*Ip
+  const weights = solveLeastSquares(features, targets); // Returns [bias, w1, w2, w3]
+  
+  // Calculate RMSE for training data
+  let totalError = 0;
+  for (let i = 0; i < paperData.length; i++) {
+    const inputWithBias = [1, ...features[i]]; // Add bias term
+    let predicted = 0;
+    for (let j = 0; j < weights.length; j++) {
+      predicted += weights[j] * inputWithBias[j];
+    }
+    const error = predicted - targets[i];
+    totalError += error * error;
+  }
+  
+  const rmse = Math.sqrt(totalError / paperData.length);
+  const accuracy = Math.max(0, 1 - rmse);
+  
+  // Prediction function
+  const predict = (params: EDMParameters) => {
+    // Normalize inputs using shared helper
+    const input = extractPaperInputs(params);
+    
+    const inputWithBias = [1, ...input];
+    let predicted = 0;
+    for (let j = 0; j < weights.length; j++) {
+      predicted += weights[j] * inputWithBias[j];
+    }
+    
+    // Denormalize using shared helper
+    const surfaceRoughness = denormalizePaperOutput(predicted);
+    
+    // Return dummy values for other outputs to match ModelResult interface
+    return {
+      materialRemovalRate: 1.5,  // Dummy value
+      surfaceRoughness,
+      wireWearRate: 0.3  // Dummy value
+    };
+  };
+  
+  return {
+    accuracy,
+    trainingTime: Date.now() - startTime,
+    samples: paperData.length,
+    rmse,
+    weights,
+    predict
+  };
+}
+
+// Principal Component Regression (PCR) focusing on 3 paper inputs -> Surface Roughness
+export async function trainPCR(useRealData: boolean = true, uploadedData?: any[]): Promise<ModelResult> {
+  const startTime = Date.now();
+  const paperData = await getPaperDataset(uploadedData);
+  if (paperData.length === 0) throw new Error("No data loaded for PCR training.");
+
+  console.log(`Training PCR with ${paperData.length} samples (3 inputs -> Surface Roughness with PCA)`);
+  
+  // Extract the 3 paper inputs (Ton, Toff, Ip) - use raw values for PCA
+  const rawFeatures = paperData.map(d => [
+    d.ton,
+    d.toff,
+    d.ip
+  ]);
+  
+  const targets = paperData.map(d => normalizePaperOutput(d.surfaceRoughness));
+  
+  // Step 1: Standardize the inputs (zero mean, unit variance)
+  const { standardizedData, means, stds } = standardizeData(rawFeatures);
+  
+  // Step 2: Perform PCA to get principal components
+  const { components, eigenvalues } = performPCA(standardizedData);
+  
+  // Step 3: Project standardized data onto principal components
+  const pcScores = projectToPCs(standardizedData, components);
+  
+  // Step 4: Solve least squares on principal component scores
+  const weights = solveLeastSquares(pcScores, targets);
+  
+  // Calculate RMSE for training data
+  let totalError = 0;
+  for (let i = 0; i < paperData.length; i++) {
+    const inputWithBias = [1, ...pcScores[i]];
+    let predicted = 0;
+    for (let j = 0; j < weights.length; j++) {
+      predicted += weights[j] * inputWithBias[j];
+    }
+    const error = predicted - targets[i];
+    totalError += error * error;
+  }
+  
+  const rmse = Math.sqrt(totalError / paperData.length);
+  const accuracy = Math.max(0, 1 - rmse);
+  
+  // Step 5: Prediction function with proper transformation pipeline
+  const predict = (params: EDMParameters) => {
+    // Extract the 3 paper inputs (raw values for PCA)
+    const rawInput = [
+      params.pulseOnTime,
+      params.pulseOffTime,
+      params.current
+    ];
+    
+    // Standardize using training means and stds
+    const standardizedInput = rawInput.map((val, i) => (val - means[i]) / (stds[i] || 1));
+    
+    // Project onto principal components
+    const pcScoresInput = components.map(component => {
+      let sum = 0;
+      for (let i = 0; i < standardizedInput.length; i++) {
+        sum += standardizedInput[i] * component[i];
+      }
+      return sum;
+    });
+    
+    // Apply regression weights
+    const inputWithBias = [1, ...pcScoresInput];
+    let predicted = 0;
+    for (let j = 0; j < weights.length; j++) {
+      predicted += weights[j] * inputWithBias[j];
+    }
+    
+    // Denormalize using shared helper
+    const surfaceRoughness = denormalizePaperOutput(predicted);
+    
+    // Return dummy values for other outputs to match ModelResult interface
+    return {
+      materialRemovalRate: 1.5,  // Dummy value
+      surfaceRoughness: surfaceRoughness,
+      wireWearRate: 0.3  // Dummy value
+    };
+  };
+  
+  return {
+    accuracy,
+    trainingTime: Date.now() - startTime,
+    samples: paperData.length,
+    rmse,
+    weights,
+    modelData: { components, eigenvalues, means, stds },
+    predict
+  };
+}
+
+// Response Surface Methodology (RSM) using second-order polynomial regression
+export async function trainRSM(useRealData: boolean = true, uploadedData?: any[]): Promise<ModelResult> {
+  const startTime = Date.now();
+  const paperData = await getPaperDataset(uploadedData);
+  if (paperData.length === 0) throw new Error("No data loaded for RSM training.");
+
+  console.log(`Training RSM with ${paperData.length} samples (3 inputs -> Surface Roughness with polynomial features)`);
+  
+  // Extract and normalize the 3 paper inputs using shared helpers
+  const baseFeatures = paperData.map(d => Array.from(normalizePaperInputs(d.ton, d.toff, d.ip)));
+  
+  const targets = paperData.map(d => normalizePaperOutput(d.surfaceRoughness));
+  
+  // Generate polynomial features for all samples
+  const polynomialFeatures = baseFeatures.map(features => 
+    generatePolynomialFeatures(features)
+  );
+  
+  // Solve for weights using least squares on polynomial features
+  const weights = solveLeastSquares(polynomialFeatures, targets);
+  
+  // Calculate RMSE for training data
+  let totalError = 0;
+  for (let i = 0; i < paperData.length; i++) {
+    const inputWithBias = [1, ...polynomialFeatures[i]];
+    let predicted = 0;
+    for (let j = 0; j < weights.length; j++) {
+      predicted += weights[j] * inputWithBias[j];
+    }
+    const error = predicted - targets[i];
+    totalError += error * error;
+  }
+  
+  const rmse = Math.sqrt(totalError / paperData.length);
+  const accuracy = Math.max(0, 1 - rmse);
+  
+  // Prediction function
+  const predict = (params: EDMParameters) => {
+    // Normalize using shared helper
+    const baseInput = extractPaperInputs(params);
+    
+    // Generate polynomial features
+    const polyInput = generatePolynomialFeatures(baseInput);
+    
+    // Apply regression weights
+    const inputWithBias = [1, ...polyInput];
+    let predicted = 0;
+    for (let j = 0; j < weights.length; j++) {
+      predicted += weights[j] * inputWithBias[j];
+    }
+    
+    // Denormalize using shared helper
+    const surfaceRoughness = denormalizePaperOutput(predicted);
+    
+    // Return dummy values for other outputs to match ModelResult interface
+    return {
+      materialRemovalRate: 1.5,  // Dummy value
+      surfaceRoughness: surfaceRoughness,
+      wireWearRate: 0.3  // Dummy value
+    };
+  };
+  
+  return {
+    accuracy,
+    trainingTime: Date.now() - startTime,
+    samples: paperData.length,
+    rmse,
+    weights,
+    predict
+  };
+}
+
+// --- RSM HELPER FUNCTIONS ---
+
+/**
+ * Generates second-order polynomial features from 3 inputs
+ * Input: [x1, x2, x3]
+ * Output: [x1, x2, x3, x1^2, x2^2, x3^2, x1*x2, x1*x3, x2*x3]
+ */
+function generatePolynomialFeatures(inputs: number[]): number[] {
+  const [x1, x2, x3] = inputs;
+  
+  return [
+    x1,           // Linear term 1
+    x2,           // Linear term 2
+    x3,           // Linear term 3
+    x1 * x1,      // Quadratic term 1
+    x2 * x2,      // Quadratic term 2
+    x3 * x3,      // Quadratic term 3
+    x1 * x2,      // Interaction term 1-2
+    x1 * x3,      // Interaction term 1-3
+    x2 * x3       // Interaction term 2-3
+  ];
+}
+
+// --- PCA HELPER FUNCTIONS ---
+
+/**
+ * Standardizes data to have zero mean and unit variance
+ */
+function standardizeData(data: number[][]): { 
+  standardizedData: number[][], 
+  means: number[], 
+  stds: number[] 
+} {
+  const numFeatures = data[0].length;
+  const numSamples = data.length;
+  
+  // Calculate means
+  const means = Array(numFeatures).fill(0);
+  for (let j = 0; j < numFeatures; j++) {
+    let sum = 0;
+    for (let i = 0; i < numSamples; i++) {
+      sum += data[i][j];
+    }
+    means[j] = sum / numSamples;
+  }
+  
+  // Calculate standard deviations
+  const stds = Array(numFeatures).fill(0);
+  for (let j = 0; j < numFeatures; j++) {
+    let sumSquares = 0;
+    for (let i = 0; i < numSamples; i++) {
+      sumSquares += Math.pow(data[i][j] - means[j], 2);
+    }
+    stds[j] = Math.sqrt(sumSquares / numSamples);
+    // Avoid division by zero
+    if (stds[j] < 1e-10) stds[j] = 1;
+  }
+  
+  // Standardize data
+  const standardizedData = data.map(row => 
+    row.map((val, j) => (val - means[j]) / stds[j])
+  );
+  
+  return { standardizedData, means, stds };
+}
+
+/**
+ * Performs PCA on standardized data
+ * Returns principal components (eigenvectors) and eigenvalues
+ */
+function performPCA(data: number[][]): {
+  components: number[][],
+  eigenvalues: number[]
+} {
+  const numFeatures = data[0].length;
+  
+  // Calculate covariance matrix
+  const covMatrix = computeCovarianceMatrix(data);
+  
+  // Compute eigenvalues and eigenvectors
+  const { eigenvalues, eigenvectors } = computeEigenDecomposition(covMatrix);
+  
+  // Sort by eigenvalues (descending) and get corresponding eigenvectors
+  const sortedIndices = eigenvalues
+    .map((val, idx) => ({ val, idx }))
+    .sort((a, b) => b.val - a.val)
+    .map(item => item.idx);
+  
+  const sortedEigenvalues = sortedIndices.map(i => eigenvalues[i]);
+  const sortedEigenvectors = sortedIndices.map(i => eigenvectors[i]);
+  
+  return {
+    components: sortedEigenvectors,
+    eigenvalues: sortedEigenvalues
+  };
+}
+
+/**
+ * Computes covariance matrix for standardized data
+ */
+function computeCovarianceMatrix(data: number[][]): number[][] {
+  const numFeatures = data[0].length;
+  const numSamples = data.length;
+  
+  const covMatrix: number[][] = Array(numFeatures).fill(0)
+    .map(() => Array(numFeatures).fill(0));
+  
+  for (let i = 0; i < numFeatures; i++) {
+    for (let j = 0; j < numFeatures; j++) {
+      let sum = 0;
+      for (let k = 0; k < numSamples; k++) {
+        sum += data[k][i] * data[k][j];
+      }
+      covMatrix[i][j] = sum / numSamples;
+    }
+  }
+  
+  return covMatrix;
+}
+
+/**
+ * Computes eigenvalues and eigenvectors for a 3x3 matrix using Power Iteration
+ * This is a simplified implementation for 3x3 matrices
+ */
+function computeEigenDecomposition(matrix: number[][]): {
+  eigenvalues: number[],
+  eigenvectors: number[][]
+} {
+  const n = matrix.length;
+  const eigenvalues: number[] = [];
+  const eigenvectors: number[][] = [];
+  
+  // Make a copy of the matrix
+  let A = matrix.map(row => [...row]);
+  
+  // Find each eigenvalue/eigenvector pair
+  for (let iter = 0; iter < n; iter++) {
+    // Power iteration to find dominant eigenvector
+    let v = Array(n).fill(0).map(() => Math.random());
+    
+    // Normalize
+    let norm = Math.sqrt(v.reduce((sum, val) => sum + val * val, 0));
+    v = v.map(val => val / norm);
+    
+    // Iterate
+    for (let i = 0; i < 100; i++) {
+      // v_new = A * v
+      const vNew = Array(n).fill(0);
+      for (let row = 0; row < n; row++) {
+        for (let col = 0; col < n; col++) {
+          vNew[row] += A[row][col] * v[col];
+        }
+      }
+      
+      // Normalize
+      norm = Math.sqrt(vNew.reduce((sum, val) => sum + val * val, 0));
+      if (norm < 1e-10) break;
+      
+      v = vNew.map(val => val / norm);
+    }
+    
+    // Calculate eigenvalue (Rayleigh quotient)
+    const Av = Array(n).fill(0);
+    for (let row = 0; row < n; row++) {
+      for (let col = 0; col < n; col++) {
+        Av[row] += A[row][col] * v[col];
+      }
+    }
+    
+    let eigenvalue = 0;
+    for (let i = 0; i < n; i++) {
+      eigenvalue += v[i] * Av[i];
+    }
+    
+    eigenvalues.push(eigenvalue);
+    eigenvectors.push(v);
+    
+    // Deflate matrix: A = A - λ * v * v^T
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) {
+        A[i][j] -= eigenvalue * v[i] * v[j];
+      }
+    }
+  }
+  
+  return { eigenvalues, eigenvectors };
+}
+
+/**
+ * Projects data onto principal components
+ */
+function projectToPCs(data: number[][], components: number[][]): number[][] {
+  return data.map(sample => {
+    return components.map(component => {
+      let sum = 0;
+      for (let i = 0; i < sample.length; i++) {
+        sum += sample[i] * component[i];
+      }
+      return sum;
+    });
+  });
 }
 
 // --- MATRIX/MATH HELPERS ---

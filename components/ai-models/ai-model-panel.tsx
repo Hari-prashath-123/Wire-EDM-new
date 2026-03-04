@@ -14,9 +14,12 @@ interface AIModelPanelProps {
 
 const models = [
   { id: "svm", label: "SVM", description: "Support Vector Machine" },
-  { id: "ann", label: "ANN", description: "Artificial Neural Network" },
+  { id: "ann", label: "ANN", description: "Artificial Neural Network - 3-10-1 Architecture with 30/35/35 data split" },
   { id: "elm", label: "ELM", description: "Extreme Learning Machine" },
   { id: "ga", label: "GA", description: "Genetic Algorithm" },
+  { id: "mlr", label: "MLR", description: "Multiple Linear Regression - Baseline model" },
+  { id: "pcr", label: "PCR", description: "Principal Component Regression - PCA + regression" },
+  { id: "rsm", label: "RSM", description: "Response Surface Methodology - Second-order polynomial model" },
 ]
 
 export default function AIModelPanel({ selectedModel, onSelectModel, onTrain, isTraining, onUpload, uploadedData }: AIModelPanelProps) {

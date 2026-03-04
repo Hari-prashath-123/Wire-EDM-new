@@ -2,18 +2,19 @@
 
 import { useState, useMemo, useCallback, useEffect } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Settings, Play, Zap, BarChart3 } from "lucide-react"
+import { Settings, Play, Zap, BarChart3, TrendingUp } from "lucide-react"
 import Header from "@/components/header"
 import ParametersTab from "@/components/tabs/parameters-tab"
 import dynamic from "next/dynamic"
 const SimulationTab = dynamic(() => import("@/components/tabs/simulation-tab"), { ssr: false })
 import AIModelsTab from "@/components/tabs/ai-models-tab"
 import ResultsTab from "@/components/tabs/results-tab"
+import StatisticsTab from "@/components/tabs/statistics-tab"
 import type { CuttingMethod } from "@/components/simulation/types"
-import { trainSVM, trainANN, trainELM, trainGA, type ModelResult } from "@/lib/aiModels"
+import { trainSVM, trainANN, trainELM, trainGA, trainMLR, trainPCR, trainRSM, type ModelResult } from "@/lib/aiModels"
 import type { EDMParameters, ProcessMetrics } from "@/components/simulation/types"
 
-type Tab = "parameters" | "simulation" | "ai-models" | "results"
+type Tab = "parameters" | "simulation" | "ai-models" | "results" | "statistics"
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("parameters")
@@ -97,13 +98,22 @@ export default function Home() {
         model = await trainSVM(useRealData, uploadedData)
         break
       case "ANN":
-        model = await trainANN(useRealData, undefined, uploadedData)
+        model = await trainANN(useRealData, { learningRate: 0.01, epochs: 100, hiddenUnits: 10 }, uploadedData)
         break
       case "ELM":
         model = await trainELM(useRealData, uploadedData)
         break
       case "GA":
         model = await trainGA(useRealData, uploadedData)
+        break
+      case "MLR":
+        model = await trainMLR(useRealData, uploadedData)
+        break
+      case "PCR":
+        model = await trainPCR(useRealData, uploadedData)
+        break
+      case "RSM":
+        model = await trainRSM(useRealData, uploadedData)
         break
       default:
         return
@@ -148,7 +158,7 @@ export default function Home() {
 
       <main className="container mx-auto px-4 py-8">
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as Tab)} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 mb-8">
+          <TabsList className="grid w-full grid-cols-5 mb-8">
             <TabsTrigger value="parameters" className="flex items-center gap-2">
               <Settings className="w-4 h-4" />
               <span className="hidden sm:inline">Parameters</span>
@@ -164,6 +174,10 @@ export default function Home() {
             <TabsTrigger value="results" className="flex items-center gap-2">
               <BarChart3 className="w-4 h-4" />
               <span className="hidden sm:inline">Results</span>
+            </TabsTrigger>
+            <TabsTrigger value="statistics" className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4" />
+              <span className="hidden sm:inline">Statistics</span>
             </TabsTrigger>
           </TabsList>
           <TabsContent value="parameters" className="mt-6">
@@ -197,6 +211,9 @@ export default function Home() {
           </TabsContent>
           <TabsContent value="results" className="mt-6">
             <ResultsTab predictions={trainedModels} parameters={parameters} processMetrics={processMetrics} />
+          </TabsContent>
+          <TabsContent value="statistics" className="mt-6">
+            <StatisticsTab parameters={parameters} />
           </TabsContent>
         </Tabs>
       </main>

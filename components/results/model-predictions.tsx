@@ -10,7 +10,6 @@ interface Props {
 
 export default function ModelPredictions({ predictions, parameters }: Props) {
   const modelNames = Object.keys(predictions)
-  const metricKeys = ["Material Removal Rate", "Surface Roughness"]
 
   // Run predict now (some stubs require parameters; if absent, pass an empty object)
   const evaluated: Record<string, any> = {}
@@ -42,18 +41,36 @@ export default function ModelPredictions({ predictions, parameters }: Props) {
               </tr>
             </thead>
             <tbody>
-              {metricKeys.map(metricKey => (
-                <tr key={metricKey} className="border-b border-border/50 hover:bg-background/50 transition-colors">
-                  <td className="py-3 px-4 text-sm">{metricKey}</td>
-                  {modelNames.map(model => (
-                    <td key={model} className="text-right py-3 px-4 text-sm">
-                      {typeof evaluated[model]?.[metricKey] === 'number'
-                        ? evaluated[model][metricKey].toFixed(2)
-                        : (evaluated[model]?.[metricKey] ?? 'N/A')}
-                    </td>
-                  ))}
-                </tr>
-              ))}
+              <tr className="border-b border-border/50 hover:bg-background/50 transition-colors">
+                <td className="py-3 px-4 text-sm">Material Removal Rate (mm³/min)</td>
+                {modelNames.map(model => (
+                  <td key={model} className="text-right py-3 px-4 text-sm">
+                    {typeof evaluated[model]?.materialRemovalRate === 'number'
+                      ? evaluated[model].materialRemovalRate.toFixed(2)
+                      : 'N/A'}
+                  </td>
+                ))}
+              </tr>
+              <tr className="border-b border-border/50 hover:bg-background/50 transition-colors">
+                <td className="py-3 px-4 text-sm">Surface Roughness (µm)</td>
+                {modelNames.map(model => (
+                  <td key={model} className="text-right py-3 px-4 text-sm font-semibold text-primary">
+                    {typeof evaluated[model]?.surfaceRoughness === 'number'
+                      ? evaluated[model].surfaceRoughness.toFixed(3)
+                      : 'N/A'}
+                  </td>
+                ))}
+              </tr>
+              <tr className="border-b border-border/50 hover:bg-background/50 transition-colors">
+                <td className="py-3 px-4 text-sm">Wire Wear Rate</td>
+                {modelNames.map(model => (
+                  <td key={model} className="text-right py-3 px-4 text-sm">
+                    {typeof evaluated[model]?.wireWearRate === 'number'
+                      ? evaluated[model].wireWearRate.toFixed(3)
+                      : 'N/A'}
+                  </td>
+                ))}
+              </tr>
             </tbody>
           </table>
         </div>
